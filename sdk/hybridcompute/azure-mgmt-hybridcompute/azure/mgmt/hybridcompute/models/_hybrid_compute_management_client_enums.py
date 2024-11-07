@@ -91,24 +91,28 @@ class EsuServerType(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     DATACENTER = "Datacenter"
 
 
-class ExecutionState(str, Enum, metaclass=CaseInsensitiveEnumMeta):
-    """Script execution status."""
-
-    UNKNOWN = "Unknown"
-    PENDING = "Pending"
-    RUNNING = "Running"
-    FAILED = "Failed"
-    SUCCEEDED = "Succeeded"
-    TIMED_OUT = "TimedOut"
-    CANCELED = "Canceled"
-
-
 class ExtensionsStatusLevelTypes(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     """The level code."""
 
     INFO = "Info"
     WARNING = "Warning"
     ERROR = "Error"
+
+
+class HotpatchEnablementStatus(str, Enum, metaclass=CaseInsensitiveEnumMeta):
+    """Status of hotpatch enablement or disablement."""
+
+    UNKNOWN = "Unknown"
+    PENDING_EVALUATION = "PendingEvaluation"
+    DISABLED = "Disabled"
+    ACTION_REQUIRED = "ActionRequired"
+    ENABLED = "Enabled"
+
+
+class InstanceViewTypes(str, Enum, metaclass=CaseInsensitiveEnumMeta):
+    """InstanceViewTypes."""
+
+    INSTANCE_VIEW = "instanceView"
 
 
 class LastAttemptStatusEnum(str, Enum, metaclass=CaseInsensitiveEnumMeta):
@@ -153,6 +157,8 @@ class LicenseProfileSubscriptionStatus(str, Enum, metaclass=CaseInsensitiveEnumM
     ENABLING = "Enabling"
     ENABLED = "Enabled"
     DISABLED = "Disabled"
+    DISABLING = "Disabling"
+    FAILED = "Failed"
 
 
 class LicenseProfileSubscriptionStatusUpdate(str, Enum, metaclass=CaseInsensitiveEnumMeta):
@@ -241,6 +247,14 @@ class PatchServiceUsed(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     ZYPPER = "Zypper"
 
 
+class ProgramYear(str, Enum, metaclass=CaseInsensitiveEnumMeta):
+    """Describes the program year the volume license is for."""
+
+    YEAR1 = "Year 1"
+    YEAR2 = "Year 2"
+    YEAR3 = "Year 3"
+
+
 class ProvisioningIssueSeverity(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     """Severity of the provisioning issue."""
 
@@ -287,6 +301,9 @@ class PublicNetworkAccessType(str, Enum, metaclass=CaseInsensitiveEnumMeta):
     DISABLED = "Disabled"
     """Does not allow Azure Arc agents to communicate with Azure Arc services over public (internet)
     endpoints. The agents must use the private link."""
+    SECURED_BY_PERIMETER = "SecuredByPerimeter"
+    """Azure Arc agent communication with Azure Arc services over public (internet) is enforced by
+    Network Security Perimeter (NSP)"""
 
 
 class StatusLevelTypes(str, Enum, metaclass=CaseInsensitiveEnumMeta):

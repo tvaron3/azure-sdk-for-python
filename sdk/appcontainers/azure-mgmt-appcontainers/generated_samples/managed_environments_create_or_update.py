@@ -6,8 +6,6 @@
 # Changes may cause incorrect behavior and will be lost if the code is regenerated.
 # --------------------------------------------------------------------------
 
-from typing import Any, IO, Union
-
 from azure.identity import DefaultAzureCredential
 
 from azure.mgmt.appcontainers import ContainerAppsAPIClient
@@ -73,15 +71,17 @@ def main():
                         ],
                     },
                     "logsConfiguration": {"destinations": ["appInsights"]},
-                    "metricsConfiguration": {"destinations": ["dataDog"]},
-                    "tracesConfiguration": {"destinations": ["appInsights"]},
+                    "metricsConfiguration": {"destinations": ["dataDog"], "includeKeda": True},
+                    "tracesConfiguration": {"destinations": ["appInsights"], "includeDapr": True},
                 },
                 "peerAuthentication": {"mtls": {"enabled": True}},
+                "peerTrafficConfiguration": {"encryption": {"enabled": True}},
                 "vnetConfiguration": {
                     "infrastructureSubnetId": "/subscriptions/34adfa4f-cedf-4dc0-ba29-b6d1a69ab345/resourceGroups/RGName/providers/Microsoft.Network/virtualNetworks/VNetName/subnets/subnetName1"
                 },
                 "workloadProfiles": [
                     {
+                        "enableFips": True,
                         "maximumCount": 12,
                         "minimumCount": 3,
                         "name": "My-GP-01",
@@ -108,6 +108,6 @@ def main():
     print(response)
 
 
-# x-ms-original-file: specification/app/resource-manager/Microsoft.App/preview/2023-11-02-preview/examples/ManagedEnvironments_CreateOrUpdate.json
+# x-ms-original-file: specification/app/resource-manager/Microsoft.App/preview/2024-08-02-preview/examples/ManagedEnvironments_CreateOrUpdate.json
 if __name__ == "__main__":
     main()

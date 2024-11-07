@@ -6,8 +6,6 @@
 # Changes may cause incorrect behavior and will be lost if the code is regenerated.
 # --------------------------------------------------------------------------
 
-from typing import Any, IO, Union
-
 from azure.identity import DefaultAzureCredential
 
 from azure.mgmt.appcontainers import ContainerAppsAPIClient
@@ -48,6 +46,7 @@ def main():
                     },
                     "buildEnvironmentVariables": [{"name": "foo1", "value": "bar1"}, {"name": "foo2", "value": "bar2"}],
                     "contextPath": "./",
+                    "dockerfilePath": "./Dockerfile",
                     "githubPersonalAccessToken": "test",
                     "image": "image/tag",
                     "registryInfo": {
@@ -63,6 +62,6 @@ def main():
     print(response)
 
 
-# x-ms-original-file: specification/app/resource-manager/Microsoft.App/preview/2023-11-02-preview/examples/SourceControls_CreateOrUpdate.json
+# x-ms-original-file: specification/app/resource-manager/Microsoft.App/preview/2024-08-02-preview/examples/SourceControls_CreateOrUpdate.json
 if __name__ == "__main__":
     main()

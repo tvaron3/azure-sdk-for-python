@@ -8,6 +8,7 @@
 
 from copy import deepcopy
 from typing import Any, Awaitable, TYPE_CHECKING
+from typing_extensions import Self
 
 from azure.core.pipeline import policies
 from azure.core.rest import AsyncHttpResponse, HttpRequest
@@ -20,10 +21,12 @@ from ._configuration import HybridComputeManagementClientConfiguration
 from .operations import (
     ExtensionMetadataOperations,
     HybridComputeManagementClientOperationsMixin,
+    LicenseProfilesOperations,
+    LicensesOperations,
     MachineExtensionsOperations,
-    MachineRunCommandsOperations,
     MachinesOperations,
     NetworkProfileOperations,
+    NetworkSecurityPerimeterConfigurationsOperations,
     Operations,
     PrivateEndpointConnectionsOperations,
     PrivateLinkResourcesOperations,
@@ -40,8 +43,12 @@ class HybridComputeManagementClient(
 ):  # pylint: disable=client-accepts-api-version-keyword,too-many-instance-attributes
     """The Hybrid Compute Management Client.
 
+    :ivar licenses: LicensesOperations operations
+    :vartype licenses: azure.mgmt.hybridcompute.aio.operations.LicensesOperations
     :ivar machines: MachinesOperations operations
     :vartype machines: azure.mgmt.hybridcompute.aio.operations.MachinesOperations
+    :ivar license_profiles: LicenseProfilesOperations operations
+    :vartype license_profiles: azure.mgmt.hybridcompute.aio.operations.LicenseProfilesOperations
     :ivar machine_extensions: MachineExtensionsOperations operations
     :vartype machine_extensions:
      azure.mgmt.hybridcompute.aio.operations.MachineExtensionsOperations
@@ -52,9 +59,6 @@ class HybridComputeManagementClient(
     :vartype operations: azure.mgmt.hybridcompute.aio.operations.Operations
     :ivar network_profile: NetworkProfileOperations operations
     :vartype network_profile: azure.mgmt.hybridcompute.aio.operations.NetworkProfileOperations
-    :ivar machine_run_commands: MachineRunCommandsOperations operations
-    :vartype machine_run_commands:
-     azure.mgmt.hybridcompute.aio.operations.MachineRunCommandsOperations
     :ivar private_link_scopes: PrivateLinkScopesOperations operations
     :vartype private_link_scopes:
      azure.mgmt.hybridcompute.aio.operations.PrivateLinkScopesOperations
@@ -64,14 +68,18 @@ class HybridComputeManagementClient(
     :ivar private_endpoint_connections: PrivateEndpointConnectionsOperations operations
     :vartype private_endpoint_connections:
      azure.mgmt.hybridcompute.aio.operations.PrivateEndpointConnectionsOperations
+    :ivar network_security_perimeter_configurations:
+     NetworkSecurityPerimeterConfigurationsOperations operations
+    :vartype network_security_perimeter_configurations:
+     azure.mgmt.hybridcompute.aio.operations.NetworkSecurityPerimeterConfigurationsOperations
     :param credential: Credential needed for the client to connect to Azure. Required.
     :type credential: ~azure.core.credentials_async.AsyncTokenCredential
     :param subscription_id: The ID of the target subscription. Required.
     :type subscription_id: str
     :param base_url: Service URL. Default value is "https://management.azure.com".
     :type base_url: str
-    :keyword api_version: Api Version. Default value is "2023-10-03-preview". Note that overriding
-     this default value may result in unsupported behavior.
+    :keyword api_version: Api Version. Default value is "2024-07-10". Note that overriding this
+     default value may result in unsupported behavior.
     :paramtype api_version: str
     :keyword int polling_interval: Default waiting time between two polls for LRO operations if no
      Retry-After header is present.
@@ -111,7 +119,11 @@ class HybridComputeManagementClient(
         self._serialize = Serializer(client_models)
         self._deserialize = Deserializer(client_models)
         self._serialize.client_side_validation = False
+        self.licenses = LicensesOperations(self._client, self._config, self._serialize, self._deserialize)
         self.machines = MachinesOperations(self._client, self._config, self._serialize, self._deserialize)
+        self.license_profiles = LicenseProfilesOperations(
+            self._client, self._config, self._serialize, self._deserialize
+        )
         self.machine_extensions = MachineExtensionsOperations(
             self._client, self._config, self._serialize, self._deserialize
         )
@@ -120,9 +132,6 @@ class HybridComputeManagementClient(
         )
         self.operations = Operations(self._client, self._config, self._serialize, self._deserialize)
         self.network_profile = NetworkProfileOperations(self._client, self._config, self._serialize, self._deserialize)
-        self.machine_run_commands = MachineRunCommandsOperations(
-            self._client, self._config, self._serialize, self._deserialize
-        )
         self.private_link_scopes = PrivateLinkScopesOperations(
             self._client, self._config, self._serialize, self._deserialize
         )
@@ -130,6 +139,9 @@ class HybridComputeManagementClient(
             self._client, self._config, self._serialize, self._deserialize
         )
         self.private_endpoint_connections = PrivateEndpointConnectionsOperations(
+            self._client, self._config, self._serialize, self._deserialize
+        )
+        self.network_security_perimeter_configurations = NetworkSecurityPerimeterConfigurationsOperations(
             self._client, self._config, self._serialize, self._deserialize
         )
 
@@ -160,7 +172,7 @@ class HybridComputeManagementClient(
     async def close(self) -> None:
         await self._client.close()
 
-    async def __aenter__(self) -> "HybridComputeManagementClient":
+    async def __aenter__(self) -> Self:
         await self._client.__aenter__()
         return self
 

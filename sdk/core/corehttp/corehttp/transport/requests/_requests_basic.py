@@ -31,7 +31,7 @@ from urllib3.exceptions import (
     NewConnectionError,
     ConnectTimeoutError,
 )
-import requests  # pylint: disable=all
+import requests  # pylint: disable=networking-import-outside-azure-core-transport
 
 from ...exceptions import (
     ServiceRequestError,
@@ -89,7 +89,7 @@ class RequestsTransport(HttpTransport):
         self.open()
         return self
 
-    def __exit__(self, *args):  # pylint: disable=arguments-differ
+    def __exit__(self, *args):
         self.close()
 
     def _init_session(self, session: requests.Session) -> None:

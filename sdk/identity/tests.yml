@@ -1,8 +1,12 @@
+# cSpell:ignore pscore
+# cSpell:ignore issecret
 trigger: none
 
 extends:
     template: ../../eng/pipelines/templates/stages/archetype-sdk-tests.yml
     parameters:
+      Location: westus2
+      PersistOidcToken: true
       ServiceDirectory: identity
       EnvVars:
         AZURE_CLIENT_ID: $(IDENTITY_SP_CLIENT_ID)
@@ -11,11 +15,9 @@ extends:
         PEM_CONTENT: $(python-identity-certificate)
         AZURE_TEST_RUN_LIVE: true
         AZURE_SKIP_LIVE_RECORDING: 'True'
-        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       CloudConfig:
         Public:
           SubscriptionConfigurations:
-            - $(sub-config-azure-cloud-test-resources)
             - $(sub-config-identity-test-resources)
       ${{ if contains(variables['Build.DefinitionName'], 'tests-weekly') }}:
           # Test Managed Identity integrations tests on weekly tests pipeline.

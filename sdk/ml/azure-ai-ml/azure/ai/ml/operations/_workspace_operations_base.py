@@ -11,8 +11,8 @@ from typing import Any, Callable, Dict, MutableMapping, Optional, Tuple
 
 from azure.ai.ml._arm_deployments import ArmDeploymentExecutor
 from azure.ai.ml._arm_deployments.arm_helper import get_template
-from azure.ai.ml._restclient.v2023_08_01_preview import AzureMachineLearningWorkspaces as ServiceClient082023Preview
-from azure.ai.ml._restclient.v2023_08_01_preview.models import (
+from azure.ai.ml._restclient.v2024_10_01_preview import AzureMachineLearningWorkspaces as ServiceClient102024Preview
+from azure.ai.ml._restclient.v2024_10_01_preview.models import (
     EncryptionKeyVaultUpdateProperties,
     EncryptionUpdateProperties,
     WorkspaceUpdateParameters,
@@ -29,11 +29,18 @@ from azure.ai.ml._utils._workspace_utils import (
     get_name_for_dependent_resource,
     get_resource_and_group_name,
     get_resource_group_location,
+    get_sub_id_resource_and_group_name,
 )
 from azure.ai.ml._utils.utils import camel_to_snake, from_iso_duration_format_min_sec
 from azure.ai.ml._version import VERSION
 from azure.ai.ml.constants import ManagedServiceIdentityType
-from azure.ai.ml.constants._common import ArmConstants, LROConfigurations, WorkspaceKind, WorkspaceResourceConstants
+from azure.ai.ml.constants._common import (
+    WORKSPACE_PATCH_REJECTED_KEYS,
+    ArmConstants,
+    LROConfigurations,
+    WorkspaceKind,
+    WorkspaceResourceConstants,
+)
 from azure.ai.ml.constants._workspace import IsolationMode, OutboundRuleCategory
 from azure.ai.ml.entities import Hub, Project, Workspace
 from azure.ai.ml.entities._credentials import IdentityConfiguration
@@ -53,7 +60,7 @@ class WorkspaceOperationsBase(ABC):
     def __init__(
         self,
         operation_scope: OperationScope,
-        service_client: ServiceClient082023Preview,
+        service_client: ServiceClient102024Preview,
         all_operations: OperationsContainer,
         credentials: Optional[TokenCredential] = None,
         **kwargs: Dict,
@@ -79,11 +86,30 @@ class WorkspaceOperationsBase(ABC):
         workspace_name = self._check_workspace_name(workspace_name)
         resource_group = kwargs.get("resource_group") or self._resource_group_name
         obj = self._operation.get(resource_group, workspace_name)
+        v2_service_context = {}
+
+        v2_service_context["subscription_id"] = self._subscription_id
+        v2_service_context["workspace_name"] = workspace_name
+        v2_service_context["resource_group_name"] = resource_group
+        v2_service_context["auth"] = self._credentials  # type: ignore
+
+        from urllib.parse import urlparse
+
+        if obj is not None and obj.ml_flow_tracking_uri:
+            parsed_url = urlparse(obj.ml_flow_tracking_uri)
+            host_url = "https://{}".format(parsed_url.netloc)
+            v2_service_context["host_url"] = host_url
+        else:
+            v2_service_context["host_url"] = ""
+
+        # host_url=service_context._get_mlflow_url(),
+        # cloud=_get_cloud_or_default(
+        #     service_context.get_auth()._cloud_type.name
         if obj is not None and obj.kind is not None and obj.kind.lower() == WorkspaceKind.HUB:
-            return Hub._from_rest_object(obj)
+            return Hub._from_rest_object(obj, v2_service_context)
         if obj is not None and obj.kind is not None and obj.kind.lower() == WorkspaceKind.PROJECT:
-            return Project._from_rest_object(obj)
-        return Workspace._from_rest_object(obj)
+            return Project._from_rest_object(obj, v2_service_context)
+        return Workspace._from_rest_object(obj, v2_service_context)
 
     def begin_create(
         self,
@@ -106,7 +132,7 @@ class WorkspaceOperationsBase(ABC):
         :rtype: ~azure.core.polling.LROPoller[~azure.ai.ml.entities.Workspace]
         :raises ~azure.ai.ml.ValidationException: Raised if workspace is Project workspace and user
         specifies any of the following in workspace object: storage_account, container_registry, key_vault,
-        public_network_access, managed_network, customer_managed_key.
+        public_network_access, managed_network, customer_managed_key, system_datastores_auth_mode.
         """
         existing_workspace = None
         resource_group = kwargs.get("resource_group") or workspace.resource_group or self._resource_group_name
@@ -223,7 +249,7 @@ class WorkspaceOperationsBase(ABC):
             CustomArmTemplateDeploymentPollingMethod(poller, arm_submit, real_callback),
         )
 
-    # pylint: disable=too-many-statements
+    # pylint: disable=too-many-statements,too-many-locals
     def begin_update(
         self,
         workspace: Workspace,
@@ -336,6 +362,12 @@ class WorkspaceOperationsBase(ABC):
             description=kwargs.get("description", workspace.description),
             friendly_name=kwargs.get("display_name", workspace.display_name),
             public_network_access=kwargs.get("public_network_access", workspace.public_network_access),
+            system_datastores_auth_mode=kwargs.get(
+                "system_datastores_auth_mode", workspace.system_datastores_auth_mode
+            ),
+            allow_role_assignment_on_rg=kwargs.get(
+                "allow_roleassignment_on_rg", workspace.allow_roleassignment_on_rg
+            ),  # diff due to swagger restclient casing diff
             image_build_compute=kwargs.get("image_build_compute", workspace.image_build_compute),
             identity=identity,
             primary_user_assigned_identity=kwargs.get(
@@ -366,6 +398,11 @@ class WorkspaceOperationsBase(ABC):
         )
         grant_materialization_permissions = kwargs.get("grant_materialization_permissions", None)
 
+        # Remove deprecated keys from older workspaces that might still have them before we try to update.
+        if workspace.tags is not None:
+            for bad_key in WORKSPACE_PATCH_REJECTED_KEYS:
+                _ = workspace.tags.pop(bad_key, None)
+
         # pylint: disable=unused-argument, docstring-missing-param
         def callback(_: Any, deserialized: Any, args: Any) -> Workspace:
             """Callback to be called after completion
@@ -381,7 +418,7 @@ class WorkspaceOperationsBase(ABC):
             ):
                 module_logger.info("updating feature store materialization identity role assignments..")
                 template, param, resources_being_deployed = self._populate_feature_store_role_assignment_parameters(
-                    workspace, resource_group=resource_group, **kwargs
+                    workspace, resource_group=resource_group, location=existing_workspace.location, **kwargs
                 )
 
                 arm_submit = ArmDeploymentExecutor(
@@ -565,16 +602,21 @@ class WorkspaceOperationsBase(ABC):
             )
 
         if workspace.storage_account:
-            resource_name, group_name = get_resource_and_group_name(workspace.storage_account)
+            subscription_id, resource_name, group_name = get_sub_id_resource_and_group_name(workspace.storage_account)
             _set_val(param["storageAccountName"], resource_name)
             _set_val(param["storageAccountOption"], "existing")
             _set_val(param["storageAccountResourceGroupName"], group_name)
+            _set_val(param["storageAccountSubscriptionId"], subscription_id)
         else:
             storage = _generate_storage(workspace.name, resources_being_deployed)
             _set_val(param["storageAccountName"], storage)
             _set_val(
                 param["storageAccountResourceGroupName"],
                 workspace.resource_group,
+            )
+            _set_val(
+                param["storageAccountSubscriptionId"],
+                self._subscription_id,
             )
 
         if workspace.application_insights:
@@ -584,6 +626,14 @@ class WorkspaceOperationsBase(ABC):
             _set_val(
                 param["applicationInsightsResourceGroupName"],
                 group_name,
+            )
+        elif workspace._kind and workspace._kind.lower() in {WorkspaceKind.HUB, WorkspaceKind.PROJECT}:
+            _set_val(param["applicationInsightsOption"], "none")
+            # Set empty values because arm templates whine over unset values.
+            _set_val(param["applicationInsightsName"], "ignoredButCantBeEmpty")
+            _set_val(
+                param["applicationInsightsResourceGroupName"],
+                "ignoredButCantBeEmpty",
             )
         else:
             log_analytics = _generate_log_analytics(workspace.name, resources_being_deployed)
@@ -631,6 +681,13 @@ class WorkspaceOperationsBase(ABC):
 
         if workspace.public_network_access:
             _set_val(param["publicNetworkAccess"], workspace.public_network_access)
+            _set_val(param["associatedResourcePNA"], workspace.public_network_access)
+
+        if workspace.system_datastores_auth_mode:
+            _set_val(param["systemDatastoresAuthMode"], workspace.system_datastores_auth_mode)
+
+        if workspace.allow_roleassignment_on_rg is False:
+            _set_val(param["allowRoleAssignmentOnRG"], "false")
 
         if workspace.image_build_compute:
             _set_val(param["imageBuildCompute"], workspace.image_build_compute)
@@ -673,6 +730,9 @@ class WorkspaceOperationsBase(ABC):
             online_store_target = kwargs.get("online_store_target", None)
 
             from azure.ai.ml._utils._arm_id_utils import AzureResourceId, AzureStorageContainerResourceId
+
+            # set workspace storage account access auth type to identity-based
+            _set_val(param["systemDatastoresAuthMode"], "identity")
 
             if offline_store_target:
                 arm_id = AzureStorageContainerResourceId(offline_store_target)
@@ -724,6 +784,11 @@ class WorkspaceOperationsBase(ABC):
         managed_network = None
         if workspace.managed_network:
             managed_network = workspace.managed_network._to_rest_object()
+            if workspace.managed_network.isolation_mode in [
+                IsolationMode.ALLOW_INTERNET_OUTBOUND,
+                IsolationMode.ALLOW_ONLY_APPROVED_OUTBOUND,
+            ]:
+                _set_val(param["associatedResourcePNA"], "Disabled")
         else:
             managed_network = ManagedNetwork(isolation_mode=IsolationMode.DISABLED)._to_rest_object()
         _set_obj_val(param["managedNetwork"], managed_network)
@@ -778,7 +843,8 @@ class WorkspaceOperationsBase(ABC):
         _set_val(param["workspace_name"], workspace.name)
         resource_group = kwargs.get("resource_group", workspace.resource_group)
         _set_val(param["resource_group_name"], resource_group)
-        _set_val(param["location"], workspace.location)
+        location = kwargs.get("location", workspace.location)
+        _set_val(param["location"], location)
 
         update_workspace_role_assignment = kwargs.get("update_workspace_role_assignment", None)
         if update_workspace_role_assignment:

@@ -122,10 +122,10 @@ async def examples_async():
         # for the request sent to Azure Cosmos DB. Based on the priority specified by the user,
         # if there are more requests than the configured RU/s in a second,
         # then Azure Cosmos DB will throttle low priority requests to allow high priority requests to execute.
-        # Can be used for Read, Write, and Query operations. This is specified with the priority_level keyword.
+        # Can be used for Read, Write, and Query operations. This is specified with the `priority` keyword.
         # the value can either be low or high.
         async for item in container.query_items(
-                query='SELECT * FROM products p WHERE p.productModel <> "DISCONTINUED"', priority_level="High"
+                query='SELECT * FROM products p WHERE p.productModel <> "DISCONTINUED"', priority="High"
         ):
             print(json.dumps(item, indent=True))
         # [END priority_level option]
@@ -146,6 +146,35 @@ async def examples_async():
         properties = await database.read()
         print(json.dumps(properties, indent=True))
         # [END get_database_properties]
+
+        # Retrieve the properties of a container
+        # [START get_container_properties]
+        # Get properties will return a cache of two container properties: RID and the Partition Key Definition (This will not consume RUs)
+        properties = await container._get_properties()
+
+        # Print _rid and partitionKey
+        print("Resource ID: ", properties.get('_rid'))
+        print("Partition Key: ", properties.get('partitionKey'))
+
+        # Read the container to get the latests of all the Container Properties. (This will make a backend requests and will consume RUs)
+        container_properties = await container.read()
+
+        # Print each property one by one if they are currently in the container properties
+        print("indexingPolicy: ", container_properties.get("indexingPolicy"))
+        print("etag: ", container_properties.get('_etag'))
+        print("lastModified: ", container_properties.get('lastModified'))
+        print("defaultTtl: ", container_properties.get('defaultTtl'))
+        print("uniqueKeyPolicy: ", container_properties.get('uniqueKeyPolicy'))
+        print("conflictResolutionPolicy: ", container_properties.get('conflictResolutionPolicy'))
+        print("changeFeedPolicy: ", container_properties.get('changeFeedPolicy'))
+        print("geospatialConfig: ", container_properties.get('geospatialConfig'))
+
+        # Print remaining properties if they are in the current container properties
+        for key, value in container_properties.items():
+            if key not in ['_rid', 'partitionKey', 'indexingPolicy', '_etag', 'lastModified', 'defaultTtl', 'uniqueKeyPolicy',
+                           'conflictResolutionPolicy', 'changeFeedPolicy', 'geospatialConfig']:
+                print(f"{key}: {value}")
+        # [END get_container_properties]
 
         # Modify the properties of an existing container
         # This example sets the default time to live (TTL) for items in the
@@ -233,6 +262,44 @@ async def examples_async():
         ):
             await container.delete_item(item, partition_key=["GA", "Atlanta", 30363])
         # [END delete_items]
+
+        # Get the feed ranges list from container.
+        # [START read_feed_ranges]
+        feed_ranges = [feed_range async for feed_range in await container.read_feed_ranges()]
+        # [END read_feed_ranges]
+
+        # Get a feed range from a partition key.
+        # [START feed_range_from_partition_key ]
+        feed_range_from_pk = await container.feed_range_from_partition_key(["GA", "Atlanta", 30363])
+        # [END feed_range_from_partition_key]
+
+        # Figure out if a feed range is a subset of another feed range.
+        # This example sees in which feed range from the container a feed range from a partition key is part of.
+        # [START is_feed_range_subset]
+        parent_feed_range = {}
+        for feed_range in feed_ranges:
+            if await container.is_feed_range_subset(feed_range, feed_range_from_pk):
+                parent_feed_range = feed_range
+                break
+        # [END is_feed_range_subset]
+
+
+        # Query a sorted list of items that were changed for one feed range.
+        # The asynchronous client returns asynchronous iterators for its query methods;
+        # as such, we iterate over it by using an async for loop
+        # [START query_items_change_feed]
+        async for item in container.query_items_change_feed(feed_range=feed_ranges[0]):
+            print(json.dumps(item, indent=True))
+        # [END query_items_change_feed]
+
+        # Query a sorted list of items that were changed for one feed range from beginning.
+        # The asynchronous client returns asynchronous iterators for its query methods;
+        # as such, we iterate over it by using an async for loop
+        # [START query_items_change_feed_from_beginning]
+        feed_ranges = [feed_range async for feed_range in await container.read_feed_ranges()]
+        async for item in container.query_items_change_feed(feed_range=feed_ranges[0], start_time="Beginning"):
+            print(json.dumps(item, indent=True))
+        # [END query_items_change_feed_from_beginning]
 
         await client.delete_database(database_name)
         print("Sample done running!")

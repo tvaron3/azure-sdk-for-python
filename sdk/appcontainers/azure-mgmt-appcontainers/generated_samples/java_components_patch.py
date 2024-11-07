@@ -6,8 +6,6 @@
 # Changes may cause incorrect behavior and will be lost if the code is regenerated.
 # --------------------------------------------------------------------------
 
-from typing import Any, IO, Union
-
 from azure.identity import DefaultAzureCredential
 
 from azure.mgmt.appcontainers import ContainerAppsAPIClient
@@ -43,12 +41,13 @@ def main():
                     {"propertyName": "spring.boot.admin.ui.enable-toasts", "value": "true"},
                     {"propertyName": "spring.boot.admin.monitor.status-interval", "value": "10000ms"},
                 ],
+                "scale": {"maxReplicas": 1, "minReplicas": 1},
             }
         },
     ).result()
     print(response)
 
 
-# x-ms-original-file: specification/app/resource-manager/Microsoft.App/preview/2023-11-02-preview/examples/JavaComponents_Patch.json
+# x-ms-original-file: specification/app/resource-manager/Microsoft.App/preview/2024-08-02-preview/examples/JavaComponents_Patch.json
 if __name__ == "__main__":
     main()

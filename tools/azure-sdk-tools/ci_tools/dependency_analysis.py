@@ -11,7 +11,11 @@ import re
 import sys
 import textwrap
 from typing import List, Set, Dict, Tuple, Any
-from collections import Sized
+
+try:
+    from collections import Sized
+except:
+    from collections.abc import Sized
 
 from pkg_resources import Requirement
 from packaging.specifiers import SpecifierSet, Version
@@ -65,7 +69,9 @@ def get_lib_deps(base_dir: str) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Di
             packages[lib_name] = {"version": version, "source": lib_dir, "deps": []}
 
             for req in requires:
-                req_name, spec = parse_require(req)
+                req_obj = parse_require(req)
+                req_name = req_obj.key
+                spec = req_obj.specifier if len(req_obj.specifier) else None
                 if spec is None:
                     spec = ""
 
@@ -94,7 +100,10 @@ def get_wheel_deps(wheel_dir: str) -> Tuple[Dict[str, Dict[str, Any]], Dict[str,
                 for req in requires:
                     req = req.split(";")[0]  # Extras conditions appear after a semicolon
                     req = re.sub(r"[\s\(\)]", "", req)  # Version specifiers appear in parentheses
-                    req_name, spec = parse_require(req)
+                    req_obj = parse_require(req)
+
+                    req_name = req_obj.key
+                    spec = req_obj.specifier if len(req_obj.specifier) else None
                     if spec is None:
                         spec = ""
 
@@ -312,6 +321,10 @@ def analyze_dependencies() -> None:
 
     if args.out:
         external = [k for k in dependencies if k not in packages and not k.startswith("azure")]
+
+        complete_dir = os.path.abspath(args.out)
+        report_dir = os.path.dirname(complete_dir)
+        os.makedirs(report_dir, exist_ok=True)
 
         def display_order(k):
             if k in incompatible:

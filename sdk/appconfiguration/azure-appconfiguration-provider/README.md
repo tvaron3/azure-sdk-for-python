@@ -42,7 +42,9 @@ Currently the Azure App Configuration Provider enables:
 
 * Connecting to an App Configuration Store using a connection string or Azure Active Directory.
 * Selecting multiple sets of configurations using `SettingSelector`.
+* Loading Feature Flags
 * Dynamic Refresh
+* Geo-Replication support
 * Trim prefixes off key names.
 * Resolving Key Vault References, requires AAD.
 * Secret Resolver, resolve Key Vault References locally without connecting to Key Vault.
@@ -52,8 +54,6 @@ Currently the Azure App Configuration Provider enables:
 
 List of features we are going to add to the Python Provider in the future.
 
-* Geo-Replication support
-* Feature Management
 * Configuration Placeholders
 
 ## Examples
@@ -168,6 +168,19 @@ key_vault_options = AzureAppConfigurationKeyVaultOptions(
 config = load(endpoint=endpoint, credential=DefaultAzureCredential(), key_vault_options=key_vault_options)
 ```
 
+## Geo Replication
+
+The Azure App Configuration Provider library will automatically discover the provided configuration store's replicas and use the replicas if any issue arises. From more information see [Geo-Replication](https://learn.microsoft.com/azure/azure-app-configuration/howto-geo-replication).
+
+Replica discovery is enabled by default. If you want to disable it, you can set `replica_discovery_enabled` to `False`.
+
+```python
+from azure.appconfiguration.provider import load
+from azure.identity import DefaultAzureCredential
+
+config = load(endpoint=endpoint, credential=DefaultAzureCredential(), replica_discovery_enabled=False)
+```
+
 ## Loading Feature Flags
 
 Feature Flags can be loaded from config stores using the provider. Feature flags are loaded as a dictionary of key/value pairs stored in the provider under the `feature_management`, then `feature_flags`.
@@ -178,7 +191,7 @@ alpha = config["feature_management"]["feature_flags"]["Alpha"]
 print(alpha["enabled"])
 ```
 
-By default all feature flags with no label are loaded. If you want to load feature flags with a specific label you can use `SettingSelector` to filter the feature flags.
+By default all feature flags with no label are loaded when `feature_flags_enabled` is set to `True`. . If you want to load feature flags with a specific label you can use `SettingSelector` to filter the feature flags.
 
 ```python
 from azure.appconfiguration.provider import load, SettingSelector
@@ -192,6 +205,9 @@ To enable refresh for feature flags you need to enable refresh. This will allow 
 
 ```python
 config = load(endpoint=endpoint, credential=DefaultAzureCredential(), feature_flags_enabled=True, feature_flag_refresh_enabled=True)
+
+...
+
 config.refresh()
 ```
 

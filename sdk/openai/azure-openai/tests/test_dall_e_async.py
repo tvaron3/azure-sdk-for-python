@@ -6,16 +6,17 @@
 import pytest
 import openai
 from devtools_testutils import AzureRecordedTestCase
-from conftest import configure_async, DALLE_AZURE, OPENAI, DALLE_AZURE_AD, PREVIEW, GA
+from conftest import configure_async, DALLE_AZURE, OPENAI, PREVIEW, GA
 
 
+@pytest.mark.live_test_only
 class TestDallEAsync(AzureRecordedTestCase):
 
     @configure_async
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "api_type, api_version",
-        [(DALLE_AZURE, GA), (DALLE_AZURE_AD, GA), (DALLE_AZURE, PREVIEW), (DALLE_AZURE_AD, PREVIEW), (OPENAI, "v1")]
+        [(DALLE_AZURE, GA), (DALLE_AZURE, PREVIEW), (OPENAI, "v1")]
     )
     async def test_image_create(self, client_async, api_type, api_version, **kwargs):
         image = await client_async.images.generate(

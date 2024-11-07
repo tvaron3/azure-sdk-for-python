@@ -1,17 +1,63 @@
 # Release History
 
-## 1.4.3 (Unreleased)
+## 1.6.5 (Unreleased)
 
 ### Features Added
-
-- Enable live metrics feature
-    ([#35566](https://github.com/Azure/azure-sdk-for-python/pull/35566))
 
 ### Breaking Changes
 
 ### Bugs Fixed
 
 ### Other Changes
+
+## 1.6.4 (2024-11-06)
+
+### Bugs Fixed
+
+- Fixed bug caused by migration from pkg_resources to importlib-metadata
+    ([#38371](https://github.com/Azure/azure-sdk-for-python/pull/38371))
+
+## 1.6.3 (2024-11-04)
+
+### Features Added
+
+- Enable Azure AI Inference instrumentation
+    ([#38071](https://github.com/Azure/azure-sdk-for-python/pull/38071))
+
+### Other Changes
+
+- Added AAD auth samples to distro
+    ([#37352](https://github.com/Azure/azure-sdk-for-python/pull/37352))
+
+## 1.6.2 (2024-09-05)
+
+### Bugs Fixed
+
+- Update OTel sdk and instrumentations to fix fastapi bug
+    ([#37206](https://github.com/Azure/azure-sdk-for-python/pull/37206))
+
+## 1.6.1 (2024-07-30)
+
+### Other Changes
+
+- Support for Python 3.12
+    ([#36482](https://github.com/Azure/azure-sdk-for-python/pull/36482))
+
+## 1.6.0 (2024-06-06)
+
+### Features Added
+
+- Enable views configuration
+    ([#35932](https://github.com/Azure/azure-sdk-for-python/pull/35932))
+- Rework autoinstrumentation: Configure exporters and samplers directly
+    ([#35890](https://github.com/Azure/azure-sdk-for-python/pull/35890))
+
+## 1.5.0 (2024-05-31)
+
+### Features Added
+
+- Enable live metrics feature
+    ([#35566](https://github.com/Azure/azure-sdk-for-python/pull/35566))
 
 ## 1.4.2 (2024-05-20)
 

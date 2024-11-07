@@ -7,16 +7,17 @@ import pytest
 import json
 import openai
 from devtools_testutils import AzureRecordedTestCase
-from conftest import AZURE, OPENAI, AZURE_AD, PREVIEW, GA, configure
+from conftest import AZURE, OPENAI, PREVIEW, GA, configure
 
 
+@pytest.mark.live_test_only
 class TestCompletions(AzureRecordedTestCase):
     """Missing tests for keyword argument `suffix`"""
 
     @configure
     @pytest.mark.parametrize(
         "api_type, api_version",
-        [(AZURE, PREVIEW), (AZURE, GA), (AZURE_AD, PREVIEW), (AZURE_AD, GA), (OPENAI, "v1")]
+        [(AZURE, PREVIEW), (AZURE, GA), (OPENAI, "v1")]
     )
     def test_completion(self, client, api_type, api_version, **kwargs):
 

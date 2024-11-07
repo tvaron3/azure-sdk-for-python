@@ -2,7 +2,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 # ------------------------------------
-# cspell:ignore teamprojectid, planid, jobid, oidctoken
+import warnings
 
 DEVELOPER_SIGN_ON_CLIENT_ID = "04b07795-8ddb-461a-bbee-02f9e1bf7b46"
 AZURE_VSCODE_CLIENT_ID = "aebc6443-996d-45c2-90f0-388ff96faa56"
@@ -14,9 +14,20 @@ CACHE_NON_CAE_SUFFIX = ".nocae"  # cspell:disable-line
 CACHE_CAE_SUFFIX = ".cae"
 
 
-class AzureAuthorityHosts:
+class AzureAuthorityHostsMeta(type):
+    def __getattr__(cls, name):
+        if name == "AZURE_GERMANY":
+            warnings.warn(
+                "AZURE_GERMANY is deprecated. Microsoft Cloud Germany was closed on October 29th, 2021.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return "login.microsoftonline.de"
+        raise AttributeError(f"{name} not found in {cls.__name__}")
+
+
+class AzureAuthorityHosts(metaclass=AzureAuthorityHostsMeta):
     AZURE_CHINA = "login.chinacloudapi.cn"
-    AZURE_GERMANY = "login.microsoftonline.de"
     AZURE_GOVERNMENT = "login.microsoftonline.us"
     AZURE_PUBLIC_CLOUD = "login.microsoftonline.com"
 
@@ -54,11 +65,3 @@ class EnvironmentVariables:
 
     AZURE_FEDERATED_TOKEN_FILE = "AZURE_FEDERATED_TOKEN_FILE"
     WORKLOAD_IDENTITY_VARS = (AZURE_AUTHORITY_HOST, AZURE_TENANT_ID, AZURE_FEDERATED_TOKEN_FILE)
-
-    # Azure Pipelines specific environment variables
-    SYSTEM_TEAMFOUNDATIONCOLLECTIONURI = "SYSTEM_TEAMFOUNDATIONCOLLECTIONURI"
-    SYSTEM_TEAMPROJECTID = "SYSTEM_TEAMPROJECTID"
-    SYSTEM_PLANID = "SYSTEM_PLANID"
-    SYSTEM_JOBID = "SYSTEM_JOBID"
-    SYSTEM_ACCESSTOKEN = "SYSTEM_ACCESSTOKEN"
-    SYSTEM_HOSTTYPE = "SYSTEM_HOSTTYPE"

@@ -1,6 +1,25 @@
 # Release History
 
-## 1.1.1 (Unreleased)
+## 2.0.0b2 (2024-09-12)
+
+### Bugs Fixed
+
+* Fixing ETag to be "ETag" instead of "etag" in feature flag telemetry.
+
+## 2.0.0b1 (2024-09-11)
+
+### Features Added
+
+* Added support for feature flag telemetry.
+
+## 1.3.0 (2024-09-09)
+
+### Features Added
+
+* Added support for auto failover between replicas.
+* Added support for auto discovery of replicas.
+
+## 1.2.0 (2024-05-24)
 
 ### Features Added
 
@@ -8,13 +27,9 @@
 * Select Feature Flags to load with `feature_flag_selectors`
 * Enable/Disable Feature Flag Refresh with `feature_flag_refresh_enabled`
 
-### Breaking Changes
-
 ### Bugs Fixed
 
-* Fixes issue where loading configurations were slower do to returning a copy of the configurations.
-
-### Other Changes
+* Fixes issue where loading configurations were slower due to returning a copy of the configurations.
 
 ## 1.1.0 (2024-01-29)
 

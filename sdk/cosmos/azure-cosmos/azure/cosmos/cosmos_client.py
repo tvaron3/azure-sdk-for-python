@@ -124,7 +124,6 @@ def _build_connection_policy(kwargs: Dict[str, Any]) -> ConnectionPolicy:
             "'connection_retry_policy' has been deprecated and will be removed from the SDK in a future release.",
             DeprecationWarning
         )
-    connection_retry = policy.ConnectionRetryConfiguration
     if not connection_retry:
         connection_retry = ConnectionRetryPolicy(
             retry_total=total_retries,
@@ -136,6 +135,7 @@ def _build_connection_policy(kwargs: Dict[str, Any]) -> ConnectionPolicy:
             retry_backoff_factor=kwargs.pop('retry_backoff_factor', 0.8),
         )
     policy.ConnectionRetryConfiguration = connection_retry
+    policy.ResponsePayloadOnWriteDisabled = kwargs.pop('no_response_on_write', False)
     return policy
 
 
@@ -179,6 +179,8 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
         Must be used along with a logger to work.
     :keyword ~logging.Logger logger: Logger to be used for collecting request diagnostics. Can be passed in at client
         level (to log all requests) or at a single request level. Requests will be logged at INFO level.
+    :keyword bool no_response_on_write: Indicates whether service should be instructed to skip sending 
+        response payloads on rite operations for items.
 
     .. admonition:: Example:
 
@@ -188,7 +190,6 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
             :language: python
             :dedent: 0
             :caption: Create a new instance of the Cosmos DB client:
-            :name: create_client
     """
 
     def __init__(
@@ -273,6 +274,7 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
         :returns: A DatabaseProxy instance representing the new database.
         :rtype: ~azure.cosmos.DatabaseProxy
         :raises ~azure.cosmos.exceptions.CosmosResourceExistsError: Database with the given ID already exists.
+
         .. admonition:: Example:
 
             .. literalinclude:: ../samples/examples.py
@@ -281,7 +283,6 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
                 :language: python
                 :dedent: 0
                 :caption: Create a database in the Cosmos DB account:
-                :name: create_database
         """
         response_hook = kwargs.pop('response_hook', None)
         if session_token is not None:
@@ -322,6 +323,7 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
         """
         Create the database if it does not exist already.
         If the database already exists, the existing settings are returned.
+
         ..note::
             This function does not check or update existing database settings or
             offer throughput if they differ from what is passed in.

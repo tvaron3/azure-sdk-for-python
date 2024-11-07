@@ -2,27 +2,22 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # ---------------------------------------------------------
 
-from typing import Tuple
+import uuid
+from typing import Dict, Optional, Tuple
 
 import pytest
 from devtools_testutils import AzureRecordedTestCase, is_live
 
 from azure.ai.ml import MLClient
+from azure.ai.ml._restclient.v2024_01_01_preview.models import FineTuningTaskType
 from azure.ai.ml.entities._inputs_outputs import Input, Output
-from azure.ai.ml.operations._run_history_constants import JobStatus
-from azure.ai.ml.entities._inputs_outputs import Input
-from typing import Optional, Dict
 from azure.ai.ml.entities._job.finetuning.custom_model_finetuning_job import CustomModelFineTuningJob
-import pytest
-from azure.ai.ml._restclient.v2024_01_01_preview.models import (
-    FineTuningTaskType,
-)
-import uuid
+from azure.ai.ml.operations._run_history_constants import JobStatus
 
 
-@pytest.mark.automl_test
+@pytest.mark.finetuning_job_test
 @pytest.mark.usefixtures("recorded_test")
-@pytest.mark.skipif(condition=not is_live(), reason="Datasets downloaded by test are too large to record reliably")
+@pytest.mark.skipif(condition=not is_live(), reason="This test requires a live endpoint")
 class TestCustomModelFineTuningJob(AzureRecordedTestCase):
     def test_custom_model_finetuning_job(
         self, text_completion_dataset: Tuple[Input, Input], mlflow_model_llama: Input, client: MLClient
@@ -50,7 +45,8 @@ class TestCustomModelFineTuningJob(AzureRecordedTestCase):
         )
         # Trigger job
         created_job = client.jobs.create_or_update(custom_model_finetuning_job)
-
+        returned_job = client.jobs.get(created_job.name)
+        assert returned_job is not None
         # Assert created job
         assert created_job.id is not None
         assert created_job.name == f"llama-{short_guid}", f"Expected job name to be llama-{short_guid}"

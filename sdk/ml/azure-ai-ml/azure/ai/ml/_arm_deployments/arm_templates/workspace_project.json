@@ -39,6 +39,17 @@
                 "description": "Specifies the resource group name of the Azure Machine Learning workspace."
             }
         },
+        "associatedResourcePNA": {
+            "type": "string",
+            "defaultValue": "Enabled",
+            "allowedValues": [
+                "Enabled",
+                "Disabled"
+            ],
+            "metadata": {
+                "description": "Determines the PublicNetworkAccess mode of new workspace-associated resources provisioned alongside with workspace."
+            }
+        },
         "storageAccountOption": {
             "type": "string",
             "defaultValue": "new",
@@ -71,6 +82,10 @@
             "metadata": {
                 "description": "Determines whether or not to put the storage account behind VNet"
             }
+        },
+        "storageAccountSubscriptionId": {
+            "type": "string",
+            "defaultValue": "[subscription().subscriptionId]"
         },
         "storageAccountResourceGroupName": {
             "type": "string",
@@ -119,10 +134,11 @@
         },
         "applicationInsightsOption": {
             "type": "string",
-            "defaultValue": "none",
+            "defaultValue": "new",
             "allowedValues": [
-                "none",
-                "existing"
+                "new",
+                "existing",
+                "none"
             ],
             "metadata": {
                 "description": "Determines whether or not new ApplicationInsights should be provisioned."
@@ -161,7 +177,7 @@
             "type": "string",
             "defaultValue": "none",
             "allowedValues": [
-                "existing",
+                "new",
                 "none"
             ],
             "metadata": {
@@ -622,11 +638,30 @@
             "metadata": {
                 "description": "Whether to grant materialization identity permissions"
             }
+        },
+        "allowRoleAssignmentOnRG": {
+            "type": "string",
+            "defaultValue": "true",
+            "allowedValues": [
+                "true",
+                "false"
+            ],
+            "metadata": {
+                "description": "Unused for projects, but required due to interdependency of normal and project ARM templates."
+            }
+        },
+        
+        "systemDatastoresAuthMode": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "Unused for projects, but required due to interdependency of normal and project ARM templates"
+            }
         }
     },
     "variables": {
         "tenantId": "[subscription().tenantId]",
-        "storageAccount": "[resourceId(parameters('storageAccountResourceGroupName'), 'Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
+        "storageAccount": "[resourceId(parameters('storageAccountSubscriptionId'), parameters('storageAccountResourceGroupName'), 'Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]",
         "keyVault": "[resourceId(parameters('keyVaultResourceGroupName'), 'Microsoft.KeyVault/vaults', parameters('keyVaultName'))]",
         "containerRegistry": "[resourceId(parameters('containerRegistryResourceGroupName'), 'Microsoft.ContainerRegistry/registries', parameters('containerRegistryName'))]",
         "applicationInsights": "[resourceId(parameters('applicationInsightsResourceGroupName'), 'Microsoft.Insights/components', parameters('applicationInsightsName'))]",

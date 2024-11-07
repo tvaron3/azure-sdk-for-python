@@ -1,14 +1,24 @@
 # Release History
 
-## 5.12.1 (Unreleased)
+## 5.12.3 (Unreleased)
 
 ### Features Added
 
-### Breaking Changes
+- Added `ssl_context` parameter to the clients to allow users to pass in the SSL context, in which case, `connection_verify` will be ignored if specified.
+
+- Added logging to track received messages.
+
+## 5.12.2 (2024-10-02)
 
 ### Bugs Fixed
 
-### Other Changes
+- Implemented backpressure for  async consumer  to address a memory leak issue. ([#36398](https://github.com/Azure/azure-sdk-for-python/issues/36398))
+
+## 5.12.1 (2024-06-11)
+
+### Bugs Fixed
+
+- Fixed a bug where the correct URI was not being used for consumer authentication, causing issues when assigning roles at the consumer group level. ([#35337](https://github.com/Azure/azure-sdk-for-python/issues/35337))
 
 ## 5.12.0 (2024-05-16)
 

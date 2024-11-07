@@ -8,13 +8,13 @@ from os import PathLike
 from pathlib import Path
 from typing import IO, Any, AnyStr, Dict, List, Optional, Tuple, Type, Union
 
-from azure.ai.ml._restclient.v2023_08_01_preview.models import FeatureStoreSettings as RestFeatureStoreSettings
-from azure.ai.ml._restclient.v2023_08_01_preview.models import ManagedNetworkSettings as RestManagedNetwork
-from azure.ai.ml._restclient.v2023_08_01_preview.models import ManagedServiceIdentity as RestManagedServiceIdentity
-from azure.ai.ml._restclient.v2023_08_01_preview.models import (
+from azure.ai.ml._restclient.v2024_10_01_preview.models import FeatureStoreSettings as RestFeatureStoreSettings
+from azure.ai.ml._restclient.v2024_10_01_preview.models import ManagedNetworkSettings as RestManagedNetwork
+from azure.ai.ml._restclient.v2024_10_01_preview.models import ManagedServiceIdentity as RestManagedServiceIdentity
+from azure.ai.ml._restclient.v2024_10_01_preview.models import (
     ServerlessComputeSettings as RestServerlessComputeSettings,
 )
-from azure.ai.ml._restclient.v2023_08_01_preview.models import Workspace as RestWorkspace
+from azure.ai.ml._restclient.v2024_10_01_preview.models import Workspace as RestWorkspace
 from azure.ai.ml._schema.workspace.workspace import WorkspaceSchema
 from azure.ai.ml._utils.utils import dump_yaml_to_file
 from azure.ai.ml.constants._common import (
@@ -81,9 +81,13 @@ class Workspace(Resource):
     :type primary_user_assigned_identity: str
     :param managed_network: workspace's Managed Network configuration
     :type managed_network: ~azure.ai.ml.entities.ManagedNetwork
+    :param system_datastores_auth_mode: The authentication mode for system datastores.
+    :type system_datastores_auth_mode: str
     :param enable_data_isolation: A flag to determine if workspace has data isolation enabled.
         The flag can only be set at the creation phase, it can't be updated.
     :type enable_data_isolation: bool
+    :param allow_roleassignment_on_rg: Determine whether allow workspace role assignment on resource group level.
+    :type allow_roleassignment_on_rg: Optional[bool]
     :param serverless_compute: The serverless compute settings for the workspace.
     :type: ~azure.ai.ml.entities.ServerlessComputeSettings
     :param workspace_hub: Deprecated resource ID of an existing workspace hub to help create project workspace.
@@ -120,13 +124,14 @@ class Workspace(Resource):
         identity: Optional[IdentityConfiguration] = None,
         primary_user_assigned_identity: Optional[str] = None,
         managed_network: Optional[ManagedNetwork] = None,
+        system_datastores_auth_mode: Optional[str] = None,
         enable_data_isolation: bool = False,
+        allow_roleassignment_on_rg: Optional[bool] = None,
         hub_id: Optional[str] = None,  # Hidden input, surfaced by Project
         workspace_hub: Optional[str] = None,  # Deprecated input maintained for backwards compat.
         serverless_compute: Optional[ServerlessComputeSettings] = None,
         **kwargs: Any,
     ):
-
         # Workspaces have subclasses that are differentiated by the 'kind' field in the REST API.
         # Now that this value is occasionally surfaced (for sub-class YAML specifications)
         # We've switched to using 'type' in the SDK for consistency's sake with other polymorphic classes.
@@ -159,7 +164,9 @@ class Workspace(Resource):
         self.identity = identity
         self.primary_user_assigned_identity = primary_user_assigned_identity
         self.managed_network = managed_network
+        self.system_datastores_auth_mode = system_datastores_auth_mode
         self.enable_data_isolation = enable_data_isolation
+        self.allow_roleassignment_on_rg = allow_roleassignment_on_rg
         if workspace_hub and not hub_id:
             hub_id = workspace_hub
         self.__hub_id = hub_id
@@ -307,7 +314,9 @@ class Workspace(Resource):
         return result
 
     @classmethod
-    def _from_rest_object(cls, rest_obj: RestWorkspace) -> Optional["Workspace"]:
+    def _from_rest_object(
+        cls, rest_obj: RestWorkspace, v2_service_context: Optional[object] = None
+    ) -> Optional["Workspace"]:
 
         if not rest_obj:
             return None
@@ -323,8 +332,28 @@ class Workspace(Resource):
 
         # TODO: Remove attribute check once Oct API version is out
         mlflow_tracking_uri = None
+
         if hasattr(rest_obj, "ml_flow_tracking_uri"):
-            mlflow_tracking_uri = rest_obj.ml_flow_tracking_uri
+            try:
+                from azureml.mlflow import get_mlflow_tracking_uri_v2
+
+                mlflow_tracking_uri = get_mlflow_tracking_uri_v2(rest_obj, v2_service_context)
+            except ImportError:
+                mlflow_tracking_uri = rest_obj.ml_flow_tracking_uri
+                error_msg = (
+                    "azureml.mlflow could not be imported. "
+                    "Please ensure that latest 'azureml-mlflow' has been installed in the current python environment"
+                )
+                print(error_msg)
+                # warnings.warn(error_msg, UserWarning)
+
+        # TODO: Remove once Online Endpoints updates API version to at least 2023-08-01
+        allow_roleassignment_on_rg = None
+        if hasattr(rest_obj, "allow_role_assignment_on_rg"):
+            allow_roleassignment_on_rg = rest_obj.allow_role_assignment_on_rg
+        system_datastores_auth_mode = None
+        if hasattr(rest_obj, "system_datastores_auth_mode"):
+            system_datastores_auth_mode = rest_obj.system_datastores_auth_mode
 
         # TODO: remove this once it is included in API response
         managed_network = None
@@ -378,8 +407,10 @@ class Workspace(Resource):
             identity=identity,
             primary_user_assigned_identity=rest_obj.primary_user_assigned_identity,
             managed_network=managed_network,
+            system_datastores_auth_mode=system_datastores_auth_mode,
             feature_store_settings=feature_store_settings,
             enable_data_isolation=rest_obj.enable_data_isolation,
+            allow_roleassignment_on_rg=allow_roleassignment_on_rg,
             hub_id=rest_obj.hub_resource_id,
             workspace_id=rest_obj.workspace_id,
             serverless_compute=serverless_compute,
@@ -423,8 +454,10 @@ class Workspace(Resource):
                 if self.managed_network
                 else None
             ),  # pylint: disable=protected-access
+            system_datastores_auth_mode=self.system_datastores_auth_mode,
             feature_store_settings=feature_store_settings,
             enable_data_isolation=self.enable_data_isolation,
+            allow_role_assignment_on_rg=self.allow_roleassignment_on_rg,  # diff due to swagger restclient casing diff
             hub_resource_id=self._hub_id,
             serverless_compute_settings=serverless_compute_settings,
         )
