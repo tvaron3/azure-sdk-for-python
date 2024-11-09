@@ -1,12 +1,8 @@
 import gc
-import json
-import sys
 import tracemalloc
 from azure.cosmos.aio import CosmosClient
 from devtools_testutils.perfstress_tests import PerfStressTest # type: ignore
 import random
-from viztracer import VizTracer
-from memory_profiler import profile
 from guppy import hpy
 import logging 
 
@@ -36,8 +32,8 @@ class VectorSearchTest(PerfStressTest):
             logger.addHandler(handler)
             self.client = CosmosClient(URL, credential=KEY, logger=logger, enable_diagnostics_logging=True)
         
-        database = self.client.get_database_client('vector search test')
-        self.container = database.get_container_client('test3')
+        database = self.client.get_database_client('perf-test-sdks')
+        self.container = database.get_container_client('fts')
         self.queries = []
         self.top_stats = []
         self.h = hpy()

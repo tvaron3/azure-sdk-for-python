@@ -1,10 +1,12 @@
 # The MIT License (MIT)
 # Copyright (c) Microsoft Corporation. All rights reserved.
+import concurrent.futures
 import random
 import time
 import unittest
 import uuid
 
+from faker.contrib.pytest.plugin import faker
 
 import azure.cosmos.cosmos_client as cosmos_client
 import test_config
@@ -12,6 +14,7 @@ from azure.cosmos import DatabaseProxy, PartitionKey
 from azure.cosmos._change_feed.feed_range_internal import FeedRangeInternalEpk
 from azure.cosmos._session_token_helpers import is_compound_session_token, parse_session_token
 from azure.cosmos.http_constants import HttpHeaders
+from faker import Faker
 
 
 def create_item(hpk):
@@ -146,60 +149,79 @@ class TestLatestSessionToken(unittest.TestCase):
 
     def createDocsForFTS(self):
 
-        #{'id': 'item0', 'pk': '1', 'text': 'Good morning!', 'embedding': [-0.008334724, -0.05993167, -0.0903545, -0.04791922, -0.01825805, -0.053011455, 0.120733805, 0.017714009, 0.07346743, 0.11559805, 0.03262076, 0.074512, 0.015864266, 0.01981401, 0.007850527, 0.076296456, -0.08539284, 0.016593281, -0.05423011, 0.07520837, 0.074250855, 0.056754466, -0.022098986, 0.03155444, 0.04334927, 0.024655985, -0.02109795, 0.044023883, -0.027550288, -0.11350893, -0.022806242, 0.08608921, 0.009221513, 0.06659074, 0.09087678, 0.024830079, 0.0075513036, 0.036472578, 0.015418151, 0.060497474, 0.010940685, -0.059365865, 0.043566886, 0.00427073, -0.023546139, 0.030357545, -0.03403527, 0.1182965, 0.1115939, -0.018954424, 0.0032452107, 0.10297628, 0.15328929, -0.016952349, -0.04530782, 0.04674409, -8.351895e-05, -0.19376601, -0.025091218, -0.03664667, -0.011860116, -0.10454312, -0.13109237, -0.049268447, 0.17557324, 0.044872586, 0.046787616, 0.15337633, -0.019509347, 0.0077743605, 0.04556896, -0.08413066, -0.028681897, 0.1209079, 0.1357929, -0.09314, 0.12534729, -0.065546185, 0.12212656, 0.04892026, 0.07394619, -0.08134516, -0.004493787, 0.08138869, 0.028573086, 0.12290998, -0.16477945, -0.29839617, -0.08090993, 0.12256179, 0.16591106, -0.08173688, -0.034383457, -0.1076768, -0.043022845, -0.07655759, 0.2021225, 0.03923631, 0.07703635, -0.08587159, 0.06498038, -0.08330371, 0.16486649, -0.14040637, 0.02070624, -0.069855, 0.052880887, 0.016136287, 0.00024294876, -0.19968519, 0.06933272, 0.013241983, 0.0004002109, 0.14998151, 0.07516485, 0.18610589, -0.07895138, -0.108982496, -0.03494926, -0.027637335, -0.032925423, -0.009509855, 0.1182965, -0.075513035, -0.08665501, 0.019629037, 0.2583547, 0.00983084]},
-        indexing_policy = {
-            "automatic": True,
-            "includedPaths": [
-                {
-                    "path": "/*"
-                }
-            ],
-            "excludedPaths": [
-                {
-                    "path": "/_etag/?",
-                },
-                {
-                    "path": "/embedding/*"
-                }
-            ],
-            "vectorIndexes": [
-                {
-                    "path": "/embedding",
-                    "type": "quantizedFlat"
-                }
-            ],
-            "fullTextIndexes": [
-                {"path": "/text"}
-            ]
-        }
-        full_text_policy = {
-            "defaultLanguage": "en-US",
-            "fullTextPaths": [
-                {
-                    "path": "/text1",
-                    "language": "en-US"
-                }
-            ]
-        }
+        # indexing_policy = {
+        #     "automatic": True,
+        #     "includedPaths": [
+        #         {
+        #             "path": "/*"
+        #         }
+        #     ],
+        #     "excludedPaths": [
+        #         {
+        #             "path": "/_etag/?",
+        #         },
+        #         {
+        #             "path": "/embedding/*"
+        #         }
+        #     ],
+        #     "vectorIndexes": [
+        #         {
+        #             "path": "/embedding",
+        #             "type": "quantizedFlat"
+        #         }
+        #     ],
+        #     "fullTextIndexes": [
+        #         {"path": "/text"}
+        #     ]
+        # }
+        # full_text_policy = {
+        #     "defaultLanguage": "en-US",
+        #     "fullTextPaths": [
+        #         {
+        #             "path": "/text",
+        #             "language": "en-US"
+        #         }
+        #     ]
+        # }
+        # self.client.create_database("perf-tests-sdks")
+        # db = self.client.get_database_client("Test")
+        db = self.client.get_database_client("perf-tests-sdks")
 
-        db = self.client.get_database_client("Test")
+        # container = db.create_container(
+        #     id="fts",
+        #     partition_key=PartitionKey(path="/pk"),
+        #     offer_throughput=test_config.TestConfig.THROUGHPUT_FOR_1_PARTITION,
+        #     indexing_policy=indexing_policy,
+        #     vector_embedding_policy=test_config.get_vector_embedding_policy(data_type="float32",
+        #                                                                     distance_function="cosine",
+        #                                                                     dimensions=128),
+        #     full_text_policy=full_text_policy)
+        # assert container is not None
+        #self.client.delete_database("Python SDK Test Database bd796fd6-19f9-4830-b43a-692dee60a3b1")
 
-        container = db.create_container(
-            id="fts",
-            partition_key=PartitionKey(path="/pk"),
-            offer_throughput=test_config.TestConfig.THROUGHPUT_FOR_1_PARTITION,
-            indexing_policy=indexing_policy,
-            vector_embedding_policy=test_config.get_vector_embedding_policy(data_type="float32",
-                                                                            distance_function="cosine",
-                                                                            dimensions=128),
-            full_text_policy=full_text_policy)
-        assert container is not None
-        # for i in range(100):
-        #     item = {
-        #         'id': 'item' + str(i),
-        #         'name': 'sample',
-        #         'pk': 'A' + str(random.randint(1, 10))
-        #     }
+        container = db.get_container_client("fts")
+        # for i in range(1000):
+        #     with concurrent.futures.ThreadPoolExecutor() as executor:
+        #         futures = [executor.submit(create_item_faker, container) for _ in range(1000)]
+        #     concurrent.futures.wait(futures)
+
+
+
+        # items = container.query_items("SELECT * FROM c WHERE FullTextContains(c.text, 'shoulder')",
+        #                               enable_cross_partition_query=True)
+        # for item in items:
+        #     print(item)
+
+def create_item_faker(container):
+    fake = Faker()
+    item = {
+        'id': 'item' + str(uuid.uuid4()),
+        'text': fake.text(),
+        'pk': str(uuid.uuid4()),
+        'embedding': [random.uniform(-1, 1) for _ in range(128)]
+    }
+    container.create_item(item)
+
 
 
     @staticmethod

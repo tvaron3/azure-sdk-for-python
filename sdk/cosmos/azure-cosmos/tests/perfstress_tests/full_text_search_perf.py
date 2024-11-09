@@ -5,6 +5,7 @@ from devtools_testutils.perfstress_tests import PerfStressTest # type: ignore
 import random
 from guppy import hpy
 import logging
+from test_config import TestConfig
 
 
 class FullTextSearchTest(PerfStressTest):
@@ -14,13 +15,12 @@ class FullTextSearchTest(PerfStressTest):
 
         # Auth configuration
 
-        URL = ""
-        KEY = ""
         self.logging = False
-        self.latency = True
+        self.latency = False
         self.ru = False
+        self.queryIndex = 0     # 0 for full text search, 1 for full text rank, and 2 for hybrid search
 
-        self.client = CosmosClient(URL, credential=KEY)
+        self.client = CosmosClient(TestConfig.host, credential=TestConfig.credential)
         if (self.logging):
             # Create clients
             #Create a logger for the 'azure' SDK
@@ -30,11 +30,11 @@ class FullTextSearchTest(PerfStressTest):
             # Configure a file output
             handler = logging.FileHandler(filename="python-diagnostics")
             logger.addHandler(handler)
-            self.client = CosmosClient(URL, credential=KEY, logger=logger, enable_diagnostics_logging=True)
+            self.client = CosmosClient(TestConfig.host, credential=TestConfig.credential, logger=logger, enable_diagnostics_logging=True)
 
-        database = self.client.get_database_client('vector search test')
-        self.container = database.get_container_client('test3')
-        self.queries = []
+        database = self.client.get_database_client('perf-tests-sdks')
+        self.container = database.get_container_client('fts')
+        self.queries = ["SELECT c.text AS Text FROM c WHERE FullTextContains(c.text, 'shoulder')"]
         self.top_stats = []
         self.h = hpy()
         """ self.tracer = VizTracer()
@@ -45,11 +45,6 @@ class FullTextSearchTest(PerfStressTest):
 
         Use this for any setup that can be reused multiple times by all test instances.
         """
-        for i in range(100):
-            embedding = [random.uniform(-1, 1) for _ in range(128)]
-            test_query ='SELECT TOP 100 c.authors AS RepresentedData FROM c ORDER BY VectorDistance(c.Embedding, ' + str(embedding) + ')'
-            self.queries.append(test_query)
-
         await super().global_setup()
 
     async def global_cleanup(self):
@@ -111,6 +106,7 @@ class FullTextSearchTest(PerfStressTest):
         item_list = []
         async for item in results:
             item_list.append(item)
+            # print(item)
 
 
 
