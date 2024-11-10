@@ -18,7 +18,7 @@ class FullTextSearchTest(PerfStressTest):
         self.logging = False
         self.latency = False
         self.ru = False
-        self.queryIndex = 0     # 0 for full text search, 1 for full text rank, and 2 for hybrid search
+        self.queryIndex = 1    # 0 for full text search, 1 for full text rank, and 2 for hybrid search
 
         self.client = CosmosClient(TestConfig.host, credential=TestConfig.credential)
         if (self.logging):
@@ -34,7 +34,8 @@ class FullTextSearchTest(PerfStressTest):
 
         database = self.client.get_database_client('perf-tests-sdks')
         self.container = database.get_container_client('fts')
-        self.queries = ["SELECT c.text AS Text FROM c WHERE FullTextContains(c.text, 'shoulder')"]
+        self.queries = ["SELECT c.text AS Text FROM c WHERE FullTextContains(c.text, 'shoulder')",
+                        "SELECT c.text AS Text FROM c Order By Rank FullTextScore(c.text, ['may', 'music'])"]
         self.top_stats = []
         self.h = hpy()
         """ self.tracer = VizTracer()
@@ -102,11 +103,11 @@ class FullTextSearchTest(PerfStressTest):
 
 
     async def runQuery(self):
-        results = self.container.query_items(query=self.queries[0])
+        results = self.container.query_items(query=self.queries[self.queryIndex])
         item_list = []
         async for item in results:
             item_list.append(item)
-            # print(item)
+            print(item)
 
 
 

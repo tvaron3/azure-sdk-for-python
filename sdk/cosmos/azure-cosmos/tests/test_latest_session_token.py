@@ -1,12 +1,11 @@
 # The MIT License (MIT)
 # Copyright (c) Microsoft Corporation. All rights reserved.
-import concurrent.futures
+import logging
 import random
 import time
 import unittest
 import uuid
 
-from faker.contrib.pytest.plugin import faker
 
 import azure.cosmos.cosmos_client as cosmos_client
 import test_config
@@ -47,7 +46,14 @@ class TestLatestSessionToken(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.client = cosmos_client.CosmosClient(cls.host, cls.masterKey)
+        #Create a logger for the 'azure' SDK
+        logger = logging.getLogger('azure')
+        logger.setLevel(logging.DEBUG)
+
+        # Configure a file output
+        handler = logging.FileHandler(filename="python-diagnostics")
+        logger.addHandler(handler)
+        cls.client = cosmos_client.CosmosClient(cls.host, cls.masterKey, logger=logger, enable_diagnostics_logging=True)
         cls.database = cls.client.get_database_client(cls.TEST_DATABASE_ID)
 
 
@@ -206,11 +212,15 @@ class TestLatestSessionToken(unittest.TestCase):
         #     concurrent.futures.wait(futures)
 
 
-
-        # items = container.query_items("SELECT * FROM c WHERE FullTextContains(c.text, 'shoulder')",
-        #                               enable_cross_partition_query=True)
-        # for item in items:
-        #     print(item)
+        query = "SELECT c.text AS Text FROM c Order By Rank FullTextScore(c.text, ['may', 'music'])"
+        # query = "SELECT c.text As Text FROM c WHERE FullTextContains(c.text, 'shoulder')"
+        items = container.query_items(query,
+                                      enable_cross_partition_query=True)
+        count = 0
+        for item in items:
+            count += 1
+            # print(item)
+        print(count)
 
 def create_item_faker(container):
     fake = Faker()
