@@ -5,7 +5,6 @@
 """
 
 from azure.cosmos._execution_context.base_execution_context import _QueryExecutionContextBase
-from azure.cosmos._execution_context.multi_execution_aggregator import _MultiExecutionContextAggregator
 from azure.cosmos._execution_context import document_producer
 from azure.cosmos._routing import routing_range
 from azure.cosmos import exceptions
@@ -21,16 +20,14 @@ class _Placeholders:
     formattable_order_by = "{documentdb-formattableorderbyquery-filter}"
 
 
-
 def _retrieve_component_scores(drained_results):
     component_scores_list = []
     for _ in drained_results[0]['payload']['componentScores']:
         component_scores_list.append([])
-    for index in range(len(drained_results)):
-        drained_results[index].pop('orderByItems')  # clean out the unneeded orderByItems field
-        component_scores = drained_results[index]['payload']['componentScores']
-        for component_score_index in range(len(component_scores)):
-            score_tuple = (component_scores[component_score_index], index)
+    for index, result in enumerate(drained_results):
+        component_scores = result['payload']['componentScores']
+        for component_score_index, component_score in enumerate(component_scores):
+            score_tuple = (component_score, index)
             component_scores_list[component_score_index].append(score_tuple)
     return component_scores_list
 
@@ -42,7 +39,7 @@ def _compute_rrf_scores(ranks, query_results):
         for component_index in range(component_count):
             rrf_score += 1.0 / (RRF_CONSTANT + ranks[component_index][index])
         # Add the score to the item to be returned
-        query_results[index]['Score'] = rrf_score
+        result['Score'] = rrf_score
 
 
 def _compute_ranks(component_scores):
@@ -87,24 +84,21 @@ class _HybridSearchContextAggregator(_QueryExecutionContextBase):
     by the user.
     """
 
-    def __init__(self, client, resource_link, query, options, partitioned_query_execution_info, hybrid_search_query_info):
+    def __init__(self, client, resource_link, options,
+                 partitioned_query_execution_info, hybrid_search_query_info):
         super(_HybridSearchContextAggregator, self).__init__(client, options)
 
         # use the routing provider in the client
         self._routing_provider = client._routing_map_provider
         self._client = client
         self._resource_link = resource_link
-        self._original_query = query
         self._partitioned_query_ex_info = partitioned_query_execution_info
         self._hybrid_search_query_info = hybrid_search_query_info
-        self._orderByPQ = _MultiExecutionContextAggregator.PriorityQueue()
         self._final_results = None
-        self.skip = hybrid_search_query_info['skip'] or 0
-        self.take = hybrid_search_query_info['take']
-        self.original_query = query
         self._aggregated_global_statistics = None
         self._document_producer_comparator = None
 
+    def _run_hybrid_search(self):
         # Check if we need to run global statistics queries, and if so do for every partition in the container
         if self._hybrid_search_query_info['requiresGlobalStatistics']:
             target_partition_key_ranges = self._get_target_partition_key_range(target_all_ranges=True)
@@ -143,24 +137,10 @@ class _HybridSearchContextAggregator(_QueryExecutionContextBase):
             self._aggregate_global_statistics(global_statistics_doc_producers)
 
         # re-write the component queries if needed
-        component_query_infos = self._hybrid_search_query_info['componentQueryInfos']
         if self._aggregated_global_statistics:
-            rewritten_query_infos = []
-            for query_info in component_query_infos:
-                assert query_info['orderBy']
-                assert query_info['hasNonStreamingOrderBy']
-                rewritten_order_by_expressions = []
-                for order_by_expression in query_info['orderByExpressions']:
-                    rewritten_order_by_expression = self._format_component_query(order_by_expression)
-                    rewritten_order_by_expressions.append(rewritten_order_by_expression)
-
-                rewritten_query = self._format_component_query(query_info['rewrittenQuery'])
-                new_query_info = query_info.copy()
-                new_query_info['orderByExpressions'] = rewritten_order_by_expressions
-                new_query_info['rewrittenQuery'] = rewritten_query
-                rewritten_query_infos.append(new_query_info)
+            rewritten_query_infos = self._rewrite_query_infos()
         else:
-            rewritten_query_infos = component_query_infos
+            rewritten_query_infos = self._hybrid_search_query_info['componentQueryInfos']
 
         component_query_execution_list = []
         # for each of the query infos, run the component queries for the target partitions
@@ -199,7 +179,7 @@ class _HybridSearchContextAggregator(_QueryExecutionContextBase):
         drained_results, is_singleton = _drain_and_coalesce_results(component_query_results)
         # If we only have one component query, we format the response and return with no further work
         if is_singleton:
-            self._format_singleton_response(drained_results)
+            self._format_final_results(drained_results)
             return
 
         # Sort drained results by _rid
@@ -219,15 +199,31 @@ class _HybridSearchContextAggregator(_QueryExecutionContextBase):
         _compute_rrf_scores(ranks, drained_results)
 
         # Finally, sort on the RRF scores to build the final result to return
-        drained_results.sort(key=lambda x: x['Score'])
-        self._final_results = drained_results[-(self.take + self.skip):-self.skip]
+        drained_results.sort(key=lambda x: x['Score'], reverse=True)
+        self._format_final_results(drained_results)
 
-    def _format_singleton_response(self, results):
-        # Strip off everything but the payload and emit those documents
-        self._final_results = [{'payload': result['payload']} for result in results]
-        self._final_results = self._final_results[self.skip:self.skip+self.take]
+    def _format_final_results(self, results):
+        skip = self._hybrid_search_query_info['skip'] or 0
+        take = self._hybrid_search_query_info['take']
+        self._final_results = results[skip:skip + take]
         self._final_results.reverse()
-        return True
+        self._final_results = [item["payload"]["payload"] for item in self._final_results]
+
+    def _rewrite_query_infos(self):
+        rewritten_query_infos = []
+        for query_info in self._hybrid_search_query_info['componentQueryInfos']:
+            assert query_info['orderBy']
+            assert query_info['hasNonStreamingOrderBy']
+            rewritten_order_by_expressions = []
+            for order_by_expression in query_info['orderByExpressions']:
+                rewritten_order_by_expressions.append(self._format_component_query(order_by_expression))
+
+            rewritten_query = self._format_component_query(query_info['rewrittenQuery'])
+            new_query_info = query_info.copy()
+            new_query_info['orderByExpressions'] = rewritten_order_by_expressions
+            new_query_info['rewrittenQuery'] = rewritten_query
+            rewritten_query_infos.append(new_query_info)
+        return rewritten_query_infos
 
     def _format_component_query(self, format_string):
         format_string = format_string.replace(_Placeholders.formattable_order_by, "true")
@@ -242,25 +238,27 @@ class _HybridSearchContextAggregator(_QueryExecutionContextBase):
             query = query.replace(_Placeholders.formattable_hit_counts_array.format(i), hit_counts_array)
 
         # TODO: Remove this hack later
-        return query.replace("DESC", "").replace("ASC", "")
+        if 'ORDER BY _VectorScore' in query:
+            return query.replace("DESC", "").replace("ASC", "")
+        return query
 
     def _aggregate_global_statistics(self, global_statistics_doc_producers):
         self._aggregated_global_statistics = {"documentCount": 0,
-                                             "fullTextStatistics": None}
+                                              "fullTextStatistics": None}
         for dp in global_statistics_doc_producers:
             self._aggregated_global_statistics["documentCount"] += dp._cur_item['documentCount']
             if self._aggregated_global_statistics["fullTextStatistics"] is None:
-                self._aggregated_global_statistics["fullTextStatistics"] = dp._cur_item[
-                    'fullTextStatistics']
+                self._aggregated_global_statistics["fullTextStatistics"] = dp._cur_item['fullTextStatistics']
             else:
                 all_text_statistics = self._aggregated_global_statistics["fullTextStatistics"]
                 curr_text_statistics = dp._cur_item['fullTextStatistics']
                 assert len(all_text_statistics) == len(curr_text_statistics)
-                for i in range(len(all_text_statistics)):
-                    assert len(all_text_statistics[i]['hitCounts']) == len(curr_text_statistics[i]['hitCounts'])
-                    all_text_statistics[i]['totalWordCount'] += curr_text_statistics[i]['totalWordCount']
-                    for j in range(len(all_text_statistics[i]['hitCounts'])):
-                        all_text_statistics[i]['hitCounts'][j] += curr_text_statistics[i]['hitCounts'][j]
+                for i, all_stats in enumerate(all_text_statistics):
+                    curr_stats = curr_text_statistics[i]
+                    assert len(all_stats['hitCounts']) == len(curr_stats['hitCounts'])
+                    all_stats['totalWordCount'] += curr_stats['totalWordCount']
+                    for j in range(len(all_stats['hitCounts'])):
+                        all_stats['hitCounts'][j] += curr_stats['hitCounts'][j]
 
     def __next__(self):
         """Returns the next item result.
@@ -278,10 +276,6 @@ class _HybridSearchContextAggregator(_QueryExecutionContextBase):
         raise NotImplementedError("You should use pipeline's fetch_next_block.")
 
     def _repair_document_producer(self, query, target_all_ranges=False):
-        """Repairs the document producer context by using the re-initialized routing map provider in the client,
-        which loads in a refreshed partition key range cache to re-create the partition key ranges.
-        After loading this new cache, the document producers get re-created with the new valid ranges.
-        """
         # refresh the routing provider to get the newly initialized one post-refresh
         self._routing_provider = self._client._routing_map_provider
         # will be a list of (partition_min, partition_max) tuples

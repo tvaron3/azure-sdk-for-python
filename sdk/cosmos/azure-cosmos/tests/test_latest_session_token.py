@@ -212,7 +212,7 @@ class TestLatestSessionToken(unittest.TestCase):
         #     concurrent.futures.wait(futures)
 
 
-        query = "SELECT c.text AS Text FROM c Order By Rank FullTextScore(c.text, ['may', 'music'])"
+        query = "SELECT Top 10000 c.text AS Text FROM c Order By Rank FullTextScore(c.text, ['may', 'music'])"
         # query = "SELECT c.text As Text FROM c WHERE FullTextContains(c.text, 'shoulder')"
         items = container.query_items(query,
                                       enable_cross_partition_query=True)
