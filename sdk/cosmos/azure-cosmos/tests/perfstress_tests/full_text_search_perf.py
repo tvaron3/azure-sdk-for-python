@@ -19,7 +19,7 @@ class FullTextSearchTest(PerfStressTest):
         self.latency = False
         self.ru = False
         self.queryIndex = 1    # 0 for full text search, 1 for full text rank, and 2 for hybrid search
-        top = 1000
+        top = 1001
 
         self.client = CosmosClient(TestConfig.host, credential=TestConfig.credential)
         if (self.logging):
@@ -33,11 +33,11 @@ class FullTextSearchTest(PerfStressTest):
             logger.addHandler(handler)
             self.client = CosmosClient(TestConfig.host, credential=TestConfig.credential, logger=logger, enable_diagnostics_logging=True)
 
-        database = self.client.get_database_client('perf-tests-sdks')
-        self.container = database.get_container_client('fts')
+        database = self.client.get_database_client('QueryHybridRankTesting')
+        self.container = database.get_container_client('arxiv-250kdocuments-index')
         embedding = [random.uniform(-1, 1) for _ in range(128)]
-        self.queries = ["SELECT TOP " + str(top) + " c.text AS Text FROM c WHERE FullTextContains(c.text, 'shoulder')",
-                        "SELECT TOP " + str(top) + " c.text AS Text FROM c Order By Rank FullTextScore(c.text, ['may', 'music'])",
+        self.queries = ["SELECT TOP " + str(top) + " c.id AS Text FROM c WHERE FullTextContains(c.abstract, 'shoulder')",
+                        "SELECT TOP " + str(top) + " c.id AS Text FROM c Order By Rank FullTextScore(c.abstract, ['may', 'music'])",
                         "SELECT TOP " + str(top) + " c.text AS text FROM c ORDER BY RANK RRF(FullTextScore(c.text, ['may', 'music']), VectorDistance(c.vector," + str(embedding) + ")) "]
         self.top_stats = []
         self.h = hpy()
@@ -94,7 +94,7 @@ class FullTextSearchTest(PerfStressTest):
             tracemalloc.start()
             current, peak = tracemalloc.get_traced_memory()
             before = "Memory usage before queries is: " + str(current/(1024*1024)) + "MB"
-            for i in range(100):
+            for i in range(1):
                 await self.runQuery()
             current, peak = tracemalloc.get_traced_memory()
             print(before)
@@ -110,7 +110,7 @@ class FullTextSearchTest(PerfStressTest):
         item_list = []
         async for item in results:
             item_list.append(item)
-            #print(item)
+            print(item)
 
 
 
