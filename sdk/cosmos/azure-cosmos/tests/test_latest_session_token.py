@@ -156,72 +156,72 @@ class TestLatestSessionToken(unittest.TestCase):
 
     def createDocsForFTS(self):
 
-        indexing_policy = {
-            "automatic": True,
-            "includedPaths": [
-                {
-                    "path": "/*"
-                }
-            ],
-            "excludedPaths": [
-                {
-                    "path": "/_etag/?",
-                },
-                {
-                    "path": "/embedding/*"
-                }
-            ],
-            "vectorIndexes": [
-                {
-                    "path": "/embedding",
-                    "type": "quantizedFlat"
-                }
-            ],
-            "fullTextIndexes": [
-                {"path": "/text"}
-            ]
-        }
-        full_text_policy = {
-            "defaultLanguage": "en-US",
-            "fullTextPaths": [
-                {
-                    "path": "/text",
-                    "language": "en-US"
-                }
-            ]
-        }
-        self.client.create_database("perf-tests-sdks")
-        # db = self.client.get_database_client("Test")
-        db = self.client.get_database_client("perf-tests-sdks")
+        # indexing_policy = {
+        #     "automatic": True,
+        #     "includedPaths": [
+        #         {
+        #             "path": "/*"
+        #         }
+        #     ],
+        #     "excludedPaths": [
+        #         {
+        #             "path": "/_etag/?",
+        #         },
+        #         {
+        #             "path": "/embedding/*"
+        #         }
+        #     ],
+        #     "vectorIndexes": [
+        #         {
+        #             "path": "/embedding",
+        #             "type": "quantizedFlat"
+        #         }
+        #     ],
+        #     "fullTextIndexes": [
+        #         {"path": "/text"}
+        #     ]
+        # }
+        # full_text_policy = {
+        #     "defaultLanguage": "en-US",
+        #     "fullTextPaths": [
+        #         {
+        #             "path": "/text",
+        #             "language": "en-US"
+        #         }
+        #     ]
+        # }
+        # self.client.create_database("perf-tests-sdks")
+        # # db = self.client.get_database_client("Test")
+        db = self.client.get_database_client("QueryHybridRankTesting")
 
-        container = db.create_container(
-            id="fts",
-            partition_key=PartitionKey(path="/pk"),
-            offer_throughput=test_config.TestConfig.THROUGHPUT_FOR_1_PARTITION,
-            indexing_policy=indexing_policy,
-            vector_embedding_policy=test_config.get_vector_embedding_policy(data_type="float32",
-                                                                            distance_function="cosine",
-                                                                            dimensions=128),
-            full_text_policy=full_text_policy)
-        assert container is not None
+        # container = db.create_container(
+        #     id="fts",
+        #     partition_key=PartitionKey(path="/pk"),
+        #     offer_throughput=test_config.TestConfig.THROUGHPUT_FOR_1_PARTITION,
+        #     indexing_policy=indexing_policy,
+        #     vector_embedding_policy=test_config.get_vector_embedding_policy(data_type="float32",
+        #                                                                     distance_function="cosine",
+        #                                                                     dimensions=128),
+        #     full_text_policy=full_text_policy)
+        # assert container is not None
         #self.client.delete_database("Python SDK Test Database bd796fd6-19f9-4830-b43a-692dee60a3b1")
 
-        container = db.get_container_client("fts")
-        for i in range(1000):
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                futures = [executor.submit(create_item_faker, container) for _ in range(1000)]
-            concurrent.futures.wait(futures)
+        container = db.get_container_client("arxiv-250kdocuments-index")
+        # for i in range(1000):
+        #     with concurrent.futures.ThreadPoolExecutor() as executor:
+        #         futures = [executor.submit(create_item_faker, container) for _ in range(1000)]
+        #     concurrent.futures.wait(futures)
 
 
-        # query = "SELECT Top 10000 c.text AS Text FROM c Order By Rank FullTextScore(c.text, ['may', 'music'])"
-        # # query = "SELECT c.text As Text FROM c WHERE FullTextContains(c.text, 'shoulder')"
-        # items = container.query_items(query,
-        #                               enable_cross_partition_query=True)
-        # count = 0
-        # for item in items:
-        #     count += 1
-        #     # print(item)
-        # print(count)
+        query = "SELECT TOP 1001 c.id AS Text FROM c Order By Rank FullTextScore(c.abstract, ['may', 'music'])"
+        # query = "SELECT c.text As Text FROM c WHERE FullTextContains(c.text, 'shoulder')"
+        items = container.query_items(query,
+                                      enable_cross_partition_query=True)
+        count = 0
+        for item in items:
+            count += 1
+            # print(item)
+        print(count)
 
 def create_item_faker(container):
     fake = Faker()

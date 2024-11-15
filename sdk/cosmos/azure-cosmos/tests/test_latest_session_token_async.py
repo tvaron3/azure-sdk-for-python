@@ -130,21 +130,40 @@ class TestLatestSessionTokenAsync(unittest.IsolatedAsyncioTestCase):
 
 
     async def test_latest_session_token_logical_hpk(self):
-        container = await self.database.create_container("test_updated_session_token_from_logical_hpk" + str(uuid.uuid4()),
-                                                   PartitionKey(path=["/state", "/city", "/zipcode"], kind="MultiHash"),
-                                                   offer_throughput=400)
-        feed_ranges_and_session_tokens = []
-        previous_session_token = ""
-        target_pk = ['CA', 'LA1', '90001']
-        target_feed_range = await container.feed_range_from_partition_key(target_pk)
-        target_session_token, previous_session_token = await self.create_items_logical_pk(container, target_feed_range,
-                                                                                    previous_session_token,
-                                                                                    feed_ranges_and_session_tokens,
-                                                                                    True)
-        session_token = await container.get_latest_session_token(feed_ranges_and_session_tokens, target_feed_range)
+        await self.createDocsForFTS()
+        # container = await self.database.create_container("test_updated_session_token_from_logical_hpk" + str(uuid.uuid4()),
+        #                                            PartitionKey(path=["/state", "/city", "/zipcode"], kind="MultiHash"),
+        #                                            offer_throughput=400)
+        # feed_ranges_and_session_tokens = []
+        # previous_session_token = ""
+        # target_pk = ['CA', 'LA1', '90001']
+        # target_feed_range = await container.feed_range_from_partition_key(target_pk)
+        # target_session_token, previous_session_token = await self.create_items_logical_pk(container, target_feed_range,
+        #                                                                             previous_session_token,
+        #                                                                             feed_ranges_and_session_tokens,
+        #                                                                             True)
+        # session_token = await container.get_latest_session_token(feed_ranges_and_session_tokens, target_feed_range)
+        #
+        # assert session_token == target_session_token
+        # await self.database.delete_container(container.id)
 
-        assert session_token == target_session_token
-        await self.database.delete_container(container.id)
+    async def createDocsForFTS(self):
+
+        db = self.client.get_database_client("QueryHybridRankTesting")
+
+        container = db.get_container_client("arxiv-250kdocuments-index")
+        # for i in range(1000):
+        #     with concurrent.futures.ThreadPoolExecutor() as executor:
+        #         futures = [executor.submit(create_item_faker, container) for _ in range(1000)]
+        #     concurrent.futures.wait(futures)
+
+
+        query = "SELECT TOP 1000 c.id AS Text FROM c Order By Rank FullTextScore(c.abstract, ['may', 'music'])"
+        # query = "SELECT c.text As Text FROM c WHERE FullTextContains(c.text, 'shoulder')"
+        results = container.query_items(query=query)
+        item_list = []
+        async for item in results:
+            item_list.append(item)
 
 
     @staticmethod

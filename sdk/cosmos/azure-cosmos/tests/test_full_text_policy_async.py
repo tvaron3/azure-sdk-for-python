@@ -81,7 +81,17 @@ class TestFullTextPolicyAsync(unittest.IsolatedAsyncioTestCase):
         await self.test_db.delete_container(created_container.id)
 
     async def test_replace_full_text_container_async(self):
+<<<<<<< HEAD:sdk/cosmos/azure-cosmos/tests/test_full_text_policy_async.py
         # Replace a container with a valid full text policy and full text indexing policy
+=======
+        # Replace a container without a full text policy and full text indexing policy
+
+        created_container = await self.test_db.create_container(
+            id='full_text_container' + str(uuid.uuid4()),
+            partition_key=PartitionKey(path="/id")
+        )
+        created_container_properties = await created_container.read()
+>>>>>>> 1fb4dfbc37e58a39e0fbd911b0df091986401e52:sdk/cosmos/azure-cosmos/test/test_full_text_policy_async.py
         full_text_policy = {
             "defaultLanguage": "en-US",
             "fullTextPaths": [
@@ -96,6 +106,7 @@ class TestFullTextPolicyAsync(unittest.IsolatedAsyncioTestCase):
                 {"path": "/abstract"}
             ]
         }
+<<<<<<< HEAD:sdk/cosmos/azure-cosmos/tests/test_full_text_policy_async.py
         created_container = await self.test_db.create_container(
             id='full_text_container' + str(uuid.uuid4()),
             partition_key=PartitionKey(path="/id"),
@@ -111,6 +122,12 @@ class TestFullTextPolicyAsync(unittest.IsolatedAsyncioTestCase):
         indexing_policy['fullTextIndexes'][0]['path'] = "/new_path"
         replaced_container = await self.test_db.create_container(
             id=created_container.id,
+=======
+
+        # Replace the container with new policies
+        replaced_container = await self.test_db.replace_container(
+            container=created_container.id,
+>>>>>>> 1fb4dfbc37e58a39e0fbd911b0df091986401e52:sdk/cosmos/azure-cosmos/test/test_full_text_policy_async.py
             partition_key=PartitionKey(path="/id"),
             full_text_policy=full_text_policy,
             indexing_policy=indexing_policy
@@ -118,8 +135,41 @@ class TestFullTextPolicyAsync(unittest.IsolatedAsyncioTestCase):
         properties = await replaced_container.read()
         assert properties["fullTextPolicy"] == full_text_policy
         assert properties["indexingPolicy"]['fullTextIndexes'] == indexing_policy['fullTextIndexes']
+<<<<<<< HEAD:sdk/cosmos/azure-cosmos/tests/test_full_text_policy_async.py
         await self.test_db.delete_container(created_container.id)
 
+=======
+        assert created_container_properties['indexingPolicy'] != properties['indexingPolicy']
+        await self.test_db.delete_container(created_container.id)
+
+        # Replace a container with a valid full text policy and full text indexing policy
+        created_container = await self.test_db.create_container(
+            id='full_text_container' + str(uuid.uuid4()),
+            partition_key=PartitionKey(path="/id"),
+            full_text_policy=full_text_policy,
+            indexing_policy=indexing_policy
+        )
+        created_container_properties = await created_container.read()
+        assert created_container_properties["fullTextPolicy"] == full_text_policy
+        assert created_container_properties["indexingPolicy"]['fullTextIndexes'] == indexing_policy['fullTextIndexes']
+
+        # Replace the container with new policies
+        full_text_policy['fullTextPaths'][0]['path'] = "/new_path"
+        indexing_policy['fullTextIndexes'][0]['path'] = "/new_path"
+        replaced_container = await self.test_db.replace_container(
+            container=created_container.id,
+            partition_key=PartitionKey(path="/id"),
+            full_text_policy=full_text_policy,
+            indexing_policy=indexing_policy
+        )
+        properties = replaced_container.read()
+        assert properties["fullTextPolicy"] == full_text_policy
+        assert properties["indexingPolicy"]['fullTextIndexes'] == indexing_policy['fullTextIndexes']
+        assert created_container_properties['fullTextPolicy'] != properties['fullTextPolicy']
+        assert created_container_properties["indexingPolicy"] != properties["indexingPolicy"]
+        self.test_db.delete_container(created_container.id)
+
+>>>>>>> 1fb4dfbc37e58a39e0fbd911b0df091986401e52:sdk/cosmos/azure-cosmos/test/test_full_text_policy_async.py
     async def test_fail_create_full_text_policy_async(self):
         # Pass a full text policy with a wrongly formatted path
         full_text_policy_wrong_path = {
