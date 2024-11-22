@@ -264,7 +264,7 @@ feed_ranges = list(container.read_feed_ranges())
 # [END read_feed_ranges]
 
 # Get a feed range from a partition key.
-# [START feed_range_from_partition_key ]
+# [START feed_range_from_partition_key]
 feed_range_from_pk = container.feed_range_from_partition_key(["GA", "Atlanta", 30363])
 # [END feed_range_from_partition_key]
 

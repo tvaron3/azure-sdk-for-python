@@ -1,13 +1,8 @@
 ## Release History
 
-### 4.9.0 (Unreleased)
+### 4.9.1 (Unreleased)
 
 #### Features Added
-* Added full text policy and full text indexing policy. See [PR 37891](https://github.com/Azure/azure-sdk-for-python/pull/37891).
-<<<<<<< HEAD
-=======
-* Added support for full text search and hybrid search queries. See [PR 38275](https://github.com/Azure/azure-sdk-for-python/pull/38275).
->>>>>>> 1fb4dfbc37e58a39e0fbd911b0df091986401e52
 
 #### Breaking Changes
 
@@ -15,12 +10,17 @@
 
 #### Other Changes
 
+### 4.9.0 (2024-11-18)
+
+#### Features Added
+* Added full text policy and full text indexing policy. See [PR 37891](https://github.com/Azure/azure-sdk-for-python/pull/37891).
+* Added support for full text search and hybrid search queries. See [PR 38275](https://github.com/Azure/azure-sdk-for-python/pull/38275).
+
 ### 4.8.0 (2024-11-12)
 This version and all future versions will support Python 3.13.
 
 #### Features Added
 * Added response headers directly to SDK item point operation responses. See [PR 35791](https://github.com/Azure/azure-sdk-for-python/pull/35791).
-* Added **provisional** full text policy and full text indexing policy. See [PR 37891](https://github.com/Azure/azure-sdk-for-python/pull/37891).
 * SDK will now retry all ServiceRequestErrors (failing outgoing requests) before failing. Default number of retries is 3. See [PR 36514](https://github.com/Azure/azure-sdk-for-python/pull/36514).
 * Added Retry Policy for Container Recreate in the Python SDK. See [PR 36043](https://github.com/Azure/azure-sdk-for-python/pull/36043).
 * Added option to disable write payload on writes. See [PR 37365](https://github.com/Azure/azure-sdk-for-python/pull/37365).

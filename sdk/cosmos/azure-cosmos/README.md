@@ -793,13 +793,9 @@ full_text_policy = {
     ]
 }
 ```
-<<<<<<< HEAD
-Currently, the only supported language is `en-US`.
-=======
 Currently, the only supported language is `en-US` - using the relevant ISO-639 language code to ISO-3166 country code.
 Any non-supported language or code will return an exception when trying to use it - which will also include the list of supported languages.
 This list will include more options in the future; for more information on supported languages, please see [here][cosmos_fts].
->>>>>>> 1fb4dfbc37e58a39e0fbd911b0df091986401e52
 
 Full text search indexes have been added to the already existing indexing_policy and only require the path to the
 relevant field to be used.
@@ -819,14 +815,10 @@ indexing_policy = {
         ]
     }
 ```
-<<<<<<< HEAD
-### Public Preview - Full Text Search
-=======
 Modifying the index in a container is an asynchronous operation that can take a long time to finish. See [here][cosmos_index_policy_change] for more information.
 For more information on using full text policies and full text indexes, see [here][cosmos_fts].
 
 ### Public Preview - Full Text Search and Hybrid Search
->>>>>>> 1fb4dfbc37e58a39e0fbd911b0df091986401e52
 
 With the addition of the full text indexing and full text policies, the SDK can now perform full text search and hybrid search queries.
 These queries can utilize the new query functions `FullTextContains()`, `FullTextContainsAll`, and `FullTextContainsAny` to efficiently

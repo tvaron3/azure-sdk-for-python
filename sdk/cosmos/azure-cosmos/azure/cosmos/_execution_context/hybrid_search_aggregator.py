@@ -24,8 +24,12 @@ def _retrieve_component_scores(drained_results):
     component_scores_list = []
     for _ in drained_results[0]['payload']['componentScores']:
         component_scores_list.append([])
+    undefined_components = [-999999] * len(component_scores_list)
     for index, result in enumerate(drained_results):
         component_scores = result['payload']['componentScores']
+        # Another small fix while backend changes are released to deal with empty component score scenarios
+        if len(component_scores) == 0:
+            component_scores = undefined_components
         for component_score_index, component_score in enumerate(component_scores):
             score_tuple = (component_score, index)
             component_scores_list[component_score_index].append(score_tuple)
@@ -108,9 +112,6 @@ def _format_component_query(format_string, global_statistics):
         hit_counts_array = f"[{','.join(map(str, full_text_statistics['hitCounts']))}]"
         query = query.replace(_Placeholders.formattable_hit_counts_array.format(i), hit_counts_array)
 
-    # TODO: Remove this hack later
-    if 'ORDER BY _VectorScore' in query:
-        return query.replace("DESC", "").replace("ASC", "")
     return query
 
 
@@ -135,15 +136,13 @@ def _format_component_query_workaround(format_string, global_statistics, compone
 
         statistics_index += 1
 
-    if 'ORDER BY _VectorScore' in query:
-        return query.replace("DESC", "").replace("ASC", "")
     return query
 
 
 class _HybridSearchContextAggregator(_QueryExecutionContextBase):
     """This class is a subclass of the query execution context base and serves for
-    non-streaming order by queries. It is very similar to the existing MultiExecutionContextAggregator,
-    but is needed since we're dealing with items and not document producers.
+    full text search and hybrid search queries. It is very similar to the existing MultiExecutionContextAggregator,
+    but is needed since we have a lot more additional client-side logic to take care of.
 
     This class builds upon the multi-execution aggregator, building a document producer per partition
     and draining their results entirely in order to create the result set relevant to the filters passed
@@ -160,7 +159,7 @@ class _HybridSearchContextAggregator(_QueryExecutionContextBase):
         self._resource_link = resource_link
         self._partitioned_query_ex_info = partitioned_query_execution_info
         self._hybrid_search_query_info = hybrid_search_query_info
-        self._final_results = None
+        self._final_results = []
         self._aggregated_global_statistics = None
         self._document_producer_comparator = None
 
