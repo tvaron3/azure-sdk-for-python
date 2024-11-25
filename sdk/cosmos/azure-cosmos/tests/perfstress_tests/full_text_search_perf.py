@@ -1,5 +1,8 @@
 import gc
 import tracemalloc
+
+from faker import Faker
+
 from azure.cosmos.aio import CosmosClient
 from devtools_testutils.perfstress_tests import PerfStressTest # type: ignore
 import random
@@ -22,7 +25,7 @@ class FullTextSearchTest(PerfStressTest):
         self.num_memory_queries = 100
         top = 1000
         useTop = True
-        top_str = "TOP " + str(top) + " " if useTop else ""
+        self.top_str = "TOP " + str(top) + " " if useTop else ""
 
         self.client = CosmosClient(TestConfig.host, credential=TestConfig.credential)
         if (self.logging):
@@ -38,30 +41,23 @@ class FullTextSearchTest(PerfStressTest):
 
         database = self.client.get_database_client('perf-tests-sdks')
         self.container = database.get_container_client('fts')
-        embedding = [random.uniform(-1, 1) for _ in range(128)]
-        self.queries = ["SELECT " + top_str + "c.id AS Text FROM c WHERE FullTextContains(c.text, 'shoulder')",
-                        "SELECT " + top_str + "c.id AS Text FROM c Order By Rank FullTextScore(c.text, ['may', 'music'])",
-                        "SELECT " + top_str + "c.id AS text FROM c ORDER BY RANK RRF(FullTextScore(c.text, ['may', 'music']), VectorDistance(c.vector," + str(embedding) + ")) "]
-        print(self.queries)
+        self.queries = []
         self.top_stats = []
         self.h = hpy()
         """ self.tracer = VizTracer()
         self.tracer.start() """
 
-    async def global_setup(self):
-        """The global setup is run only once.
+    async def setup(self):
+       embedding = [random.uniform(-1, 1) for _ in range(128)]
+       words = ["Important", "wrong", "direction", "mother", "green", "decision", "their", "contain", "shoulder", "may", "music"]
+       word = random.choice(words)
+       two_words = random.sample(words, 2)
+       self.queries = ["SELECT " + self.top_str + "c.id AS Text FROM c WHERE FullTextContains(c.text, '" + word + "')",
+                       "SELECT " + self.top_str + "c.id AS Text FROM c Order By Rank FullTextScore(c.text, " + str(two_words) + ")",
+                       "SELECT " + self.top_str + "c.id AS text FROM c ORDER BY RANK RRF(FullTextScore(c.text, " + str(two_words) +", VectorDistance(c.vector," + str(embedding) + ")) "]
+       print(self.queries)
+       await super().setup()
 
-        Use this for any setup that can be reused multiple times by all test instances.
-        """
-        await super().global_setup()
-
-    async def global_cleanup(self):
-        """The global cleanup is run only once.
-
-        Use this to cleanup any resources created in
-        setup.
-        """
-        await super().global_cleanup()
 
     async def close(self):
         """This is run after cleanup.
@@ -115,5 +111,6 @@ class FullTextSearchTest(PerfStressTest):
         item_list = []
         async for item in results:
             item_list.append(item)
+            print(item)
 
 
