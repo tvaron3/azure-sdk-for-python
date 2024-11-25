@@ -55,7 +55,7 @@ class FullTextSearchTest(PerfStressTest):
        self.queries = ["SELECT " + self.top_str + "c.id AS Text FROM c WHERE FullTextContains(c.text, '" + word + "')",
                        "SELECT " + self.top_str + "c.id AS Text FROM c Order By Rank FullTextScore(c.text, " + str(two_words) + ")",
                        "SELECT " + self.top_str + "c.id AS text FROM c ORDER BY RANK RRF(FullTextScore(c.text, " + str(two_words) +", VectorDistance(c.vector," + str(embedding) + ")) "]
-       print(self.queries)
+       #print(self.queries)
        await super().setup()
 
 
