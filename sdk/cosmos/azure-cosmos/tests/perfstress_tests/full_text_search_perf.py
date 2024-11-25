@@ -50,8 +50,8 @@ class FullTextSearchTest(PerfStressTest):
     async def setup(self):
        embedding = [random.uniform(-1, 1) for _ in range(128)]
        words = ["Important", "wrong", "direction", "mother", "green", "decision", "their", "contain", "shoulder", "may", "music"]
-       word = random.choice(words)
-       two_words = random.sample(words, 2)
+       word =  "shoulder" #random.choice(words)
+       two_words = ["may", "music"] #random.sample(words, 2)
        self.queries = ["SELECT " + self.top_str + "c.id AS Text FROM c WHERE FullTextContains(c.text, '" + word + "')",
                        "SELECT " + self.top_str + "c.id AS Text FROM c Order By Rank FullTextScore(c.text, " + str(two_words) + ")",
                        "SELECT " + self.top_str + "c.id AS text FROM c ORDER BY RANK RRF(FullTextScore(c.text, " + str(two_words) +", VectorDistance(c.vector," + str(embedding) + ")) "]
@@ -111,6 +111,6 @@ class FullTextSearchTest(PerfStressTest):
         item_list = []
         async for item in results:
             item_list.append(item)
-            print(item)
+            #print(item)
 
 
