@@ -18,7 +18,7 @@ class FullTextSearchTest(PerfStressTest):
         self.logging = False
         self.latency = True
         self.ru = False
-        self.queryIndex = 1    # 0 for full text search, 1 for full text rank, and 2 for hybrid search
+        self.queryIndex = 0    # 0 for full text search, 1 for full text rank, and 2 for hybrid search
         self.num_memory_queries = 100
         top = 1000
         useTop = True
@@ -39,9 +39,10 @@ class FullTextSearchTest(PerfStressTest):
         database = self.client.get_database_client('perf-tests-sdks')
         self.container = database.get_container_client('fts')
         embedding = [random.uniform(-1, 1) for _ in range(128)]
-        self.queries = ["SELECT " + top_str + "c.id AS Text FROM c WHERE FullTextContains(c.abstract, 'shoulder')",
+        self.queries = ["SELECT " + top_str + "c.id AS Text FROM c WHERE FullTextContains(c.text, 'shoulder')",
                         "SELECT " + top_str + "c.id AS Text FROM c Order By Rank FullTextScore(c.text, ['may', 'music'])",
-                        "SELECT " + top_str + "c.id AS text FROM c ORDER BY RANK RRF(FullTextScore(c.abstract, ['may', 'music']), VectorDistance(c.vector," + str(embedding) + ")) "]
+                        "SELECT " + top_str + "c.id AS text FROM c ORDER BY RANK RRF(FullTextScore(c.text, ['may', 'music']), VectorDistance(c.vector," + str(embedding) + ")) "]
+        print(self.queries)
         self.top_stats = []
         self.h = hpy()
         """ self.tracer = VizTracer()
@@ -114,7 +115,5 @@ class FullTextSearchTest(PerfStressTest):
         item_list = []
         async for item in results:
             item_list.append(item)
-            #print(item)
-
 
 
