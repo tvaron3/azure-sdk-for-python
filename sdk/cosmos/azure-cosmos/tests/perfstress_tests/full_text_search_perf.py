@@ -19,15 +19,15 @@ class FullTextSearchTest(PerfStressTest):
         # Auth configuration
 
         self.logging = False
-        self.latency = True
+        self.latency = True 
         self.ru = False
         self.queryIndex = 0    # 0 for full text search, 1 for full text rank, and 2 for hybrid search
-        self.num_memory_queries = 100
+        self.num_memory_queries = 50 
         top = 1000
         useTop = True
         self.top_str = "TOP " + str(top) + " " if useTop else ""
 
-        self.client = CosmosClient(TestConfig.host, credential=TestConfig.credential)
+        self.client = CosmosClient(TestConfig.host, credential=TestConfig.credential, user_agent="tomas43")
         if (self.logging):
             # Create clients
             #Create a logger for the 'azure' SDK
@@ -54,7 +54,7 @@ class FullTextSearchTest(PerfStressTest):
        two_words = ["may", "music"] #random.sample(words, 2)
        self.queries = ["SELECT " + self.top_str + "c.id AS Text FROM c WHERE FullTextContains(c.text, '" + word + "')",
                        "SELECT " + self.top_str + "c.id AS Text FROM c Order By Rank FullTextScore(c.text, " + str(two_words) + ")",
-                       "SELECT " + self.top_str + "c.id AS text FROM c ORDER BY RANK RRF(FullTextScore(c.text, " + str(two_words) +", VectorDistance(c.vector," + str(embedding) + ")) "]
+                       "SELECT " + self.top_str + "c.id AS text FROM c ORDER BY RANK RRF(FullTextScore(c.text, " + str(two_words) +"), VectorDistance(c.vector," + str(embedding) + ")) "]
        #print(self.queries)
        await super().setup()
 
