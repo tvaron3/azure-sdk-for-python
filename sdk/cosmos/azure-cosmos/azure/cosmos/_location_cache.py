@@ -90,17 +90,21 @@ def get_endpoints_by_location(new_locations,
                     parsed_locations.append(new_location["name"])
                     if new_location["name"] in old_endpoints_by_location:
                         regional_object = old_endpoints_by_location[new_location["name"]]
+                        logger.info("In location cache: Existing regional object: %s", str(regional_object))
                         current = regional_object.get_current()
                         # swap the previous with current and current with new region_uri received from the gateway
                         if current != region_uri:
                             regional_object.set_previous(current)
                             regional_object.set_current(region_uri)
+                        logger.info("In location cache: Updated regional object: %s", str(regional_object))
                     # This is the bootstrapping condition
                     else:
                         regional_object = RegionalEndpoint(region_uri, region_uri)
                         # if it is for writes, then we update the previous to default_endpoint
                         if writes and not use_multiple_write_locations:
                             regional_object = RegionalEndpoint(region_uri, default_regional_endpoint.get_current())
+
+                        logger.info("In location cache: This is regional object on initialization: %s", str(regional_object))
 
                     # pass in object with region uri , last known good, curr etc
                     endpoints_by_location.update({new_location["name"]: regional_object})
