@@ -23,7 +23,9 @@
 """
 import asyncio  # pylint: disable=do-not-import-asyncio
 import json
+import logging
 import time
+from datetime import datetime
 
 from azure.core.exceptions import AzureError, ClientAuthenticationError, ServiceRequestError, ServiceResponseError
 from azure.core.pipeline.policies import AsyncRetryPolicy
@@ -41,6 +43,7 @@ from .._retry_utility import (_configure_timeout, _has_read_retryable_headers,
                               _handle_service_response_retries, _handle_service_request_retries)
 from ..http_constants import HttpHeaders, StatusCodes, SubStatusCodes
 
+logger = logging.getLogger("azure.cosmos.RetryUtilityAsync")
 
 # pylint: disable=protected-access, disable=too-many-lines, disable=too-many-statements, disable=too-many-branches
 
@@ -261,6 +264,8 @@ class _ConnectionRetryPolicy(AsyncRetryPolicy):
                 raise
             except ServiceRequestError as err:
                 retry_error = err
+                logger.warning("{} - Received ServiceRequestError {}".format(datetime.now().strftime("%Y%m%d-%H%M%S"),
+                                                                             str(retry_error)))
                 # the request ran into a socket timeout or failed to establish a new connection
                 # since request wasn't sent, raise exception immediately to be dealt with in client retry policies
                 if retry_settings['connect'] > 0:
@@ -271,6 +276,8 @@ class _ConnectionRetryPolicy(AsyncRetryPolicy):
                 raise err
             except ServiceResponseError as err:
                 retry_error = err
+                logger.warning("{} - Received ServiceResponseError {}".format(datetime.now().strftime("%Y%m%d-%H%M%S"),
+                                                                             str(retry_error)))
                 # Since this is ClientConnectionError, it is safe to be retried on both read and write requests
                 try:
                     from aiohttp.client_exceptions import (
@@ -288,6 +295,8 @@ class _ConnectionRetryPolicy(AsyncRetryPolicy):
                 raise err
             except AzureError as err:
                 retry_error = err
+                logger.warning("{} - Received AzureError {}".format(datetime.now().strftime("%Y%m%d-%H%M%S"),
+                                                                             str(retry_error)))
                 if self._is_method_retryable(retry_settings, request.http_request):
                     retry_active = self.increment(retry_settings, response=request, error=err)
                     if retry_active:
