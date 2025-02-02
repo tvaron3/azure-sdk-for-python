@@ -25,6 +25,7 @@
 """
 import logging
 import os
+from datetime import datetime
 from urllib.parse import urlparse
 import uuid
 from typing import (
@@ -446,8 +447,12 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
         self.UseMultipleWriteLocations = (
                 self.connection_policy.UseMultipleWriteLocations and database_account._EnableMultipleWritableLocations
         )
-        logger.info("Database account - writable locations: %s", database_account.WritableLocations)
-        logger.info("Database account - readable locations: %s", database_account.ReadableLocations)
+        logger.info("%s - Database account - writable locations: %s",
+                    datetime.now().strftime("%Y%m%d-%H%M%S"),
+                    database_account.WritableLocations)
+        logger.info("%s - Database account - readable locations: %s",
+                    datetime.now().strftime("%Y%m%d-%H%M%S"),
+                    database_account.ReadableLocations)
         return database_account
 
     async def CreateDatabase(

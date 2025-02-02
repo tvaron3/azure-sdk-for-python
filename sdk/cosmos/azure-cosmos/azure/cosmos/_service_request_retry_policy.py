@@ -8,6 +8,8 @@ operation type.
 """
 
 import logging
+from datetime import datetime
+
 from azure.cosmos.documents import _OperationType
 from azure.cosmos.http_constants import ResourceType
 
@@ -114,10 +116,14 @@ class ServiceRequestRetryPolicy(object):
 
     def mark_endpoint_unavailable(self, unavailable_endpoint, refresh_cache: bool):
         if _OperationType.IsReadOnlyOperation(self.request.operation_type):
-            self.logger.warning("Marking %s unavailable for read", unavailable_endpoint)
+            self.logger.warning("%s - Marking %s unavailable for read",
+                                datetime.now().strftime("%Y%m%d-%H%M%S"),
+                                unavailable_endpoint)
             self.global_endpoint_manager.mark_endpoint_unavailable_for_read(unavailable_endpoint, True)
         else:
-            self.logger.warning("Marking %s unavailable for write", unavailable_endpoint)
+            self.logger.warning("%s - Marking %s unavailable for write",
+                                datetime.now().strftime("%Y%m%d-%H%M%S"),
+                                unavailable_endpoint)
             self.global_endpoint_manager.mark_endpoint_unavailable_for_write(unavailable_endpoint, refresh_cache)
 
     def update_location_cache(self):

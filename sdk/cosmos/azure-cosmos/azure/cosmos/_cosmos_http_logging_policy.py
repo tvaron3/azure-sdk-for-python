@@ -26,6 +26,7 @@
 import json
 import logging
 import time
+from datetime import datetime
 from typing import Optional, Union, Dict, Any, TYPE_CHECKING, Callable, Mapping
 import types
 
@@ -187,14 +188,16 @@ class CosmosHttpLoggingPolicy(HttpLoggingPolicy):
                 options = response.context.options
                 logger = request.context.setdefault("logger", options.pop("logger", self.logger))
                 try:
-                    logger.info("Response status code: {}".format(http_response.status_code))
-                    logger.info("Response URL: {}".format(request.http_request.url))
+                    logger.info("{} - Response status code: {}".format(datetime.now().strftime("%Y%m%d-%H%M%S"),
+                                                                       http_response.status_code))
+                    logger.info("{} - Response URL: {}".format(datetime.now().strftime("%Y%m%d-%H%M%S"),
+                                                               request.http_request.url))
                     # Thin Client headers
                     ThinClientProxyOperationType = "x-ms-thinclient-proxy-operation-type"
                     ThinClientProxyResourceType = "x-ms-thinclient-proxy-resource-type"
-                    logger.info("Operation type: {}".format(
+                    logger.info("{} - Operation type: {}".format(datetime.now().strftime("%Y%m%d-%H%M%S"),
                         request.http_request.headers[ThinClientProxyOperationType]))
-                    logger.info("Resource type: {}".format(
+                    logger.info("{} - Resource type: {}".format(datetime.now().strftime("%Y%m%d-%H%M%S"),
                         request.http_request.headers[ThinClientProxyResourceType]))
                     # if "start_time" in request.context:
                     #     logger.info("Elapsed time in seconds: {}".format(duration))
