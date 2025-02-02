@@ -329,7 +329,7 @@ class ConnectionPolicy:  # pylint: disable=too-many-instance-attributes
         Indicates whether service should be instructed to skip sending response payloads
     """
 
-    __defaultRequestTimeout: int = 60  # seconds
+    __defaultRequestTimeout: int = 5  # seconds
     __defaultMaxBackoff: int = 1 # seconds
 
     def __init__(self) -> None:
