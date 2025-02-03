@@ -188,8 +188,8 @@ class CosmosHttpLoggingPolicy(HttpLoggingPolicy):
                 options = response.context.options
                 logger = request.context.setdefault("logger", options.pop("logger", self.logger))
                 try:
-                    logger.info("{} - Response status code: {}".format(datetime.now().strftime("%Y%m%d-%H%M%S"),
-                                                                       http_response.status_code))
+                    logger.info("{} - Response status code: {}, sub status code: {}".format(datetime.now().strftime("%Y%m%d-%H%M%S"),
+                                                                       http_response.status_code, http_response.headers["x-ms-substatus"]))
                     logger.info("{} - Response URL: {}".format(datetime.now().strftime("%Y%m%d-%H%M%S"),
                                                                request.http_request.url))
                     # Thin Client headers
