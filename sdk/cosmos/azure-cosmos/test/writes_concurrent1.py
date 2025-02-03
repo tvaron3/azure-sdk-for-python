@@ -25,7 +25,7 @@ import logging
 # logger.addHandler(handler)
 
 # Replace with your Cosmos DB details
-preferred_regions_2 = ['East US 2', 'North Central US']
+preferred_regions_2 = ['East US 2 EUAP', 'Central US EUAP']
 COSMOS_URI2 = ""
 COSMOS_KEY2 = ""
 
@@ -108,7 +108,8 @@ async def create_items(client_id):
 
 async def create_items_initial():
     async with AsyncClient(COSMOS_URI2, COSMOS_KEY2, preferred_locations=preferred_regions_2,
-                           enable_diagnostics_logging=True, logger=logger, user_agent="Concurrent-Write-Tomas-") as client:
+                           enable_diagnostics_logging=True, logger=logger,
+                           user_agent="Concurrent-Write-VM-" + datetime.now().strftime("%Y%m%d-%H%M%S")) as client:
         db = await client.create_database_if_not_exists("SimonDB")
         cont = await db.create_container_if_not_exists("SimonContainer", PartitionKey("/pk"))
         time.sleep(1)
