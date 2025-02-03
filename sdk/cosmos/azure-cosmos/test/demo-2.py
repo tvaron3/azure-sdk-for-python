@@ -1,3 +1,4 @@
+import os
 import random
 import sys
 
@@ -92,9 +93,10 @@ async def multi_region(client_id):
 
 if __name__ == "__main__":
     logger = logging.getLogger('azure.cosmos')
-    file_handler = logging.FileHandler('fiddler_testing-' + datetime.now().strftime("%Y%m%d-%H%M%S") + '.txt')
+    file_name = os.path.basename(__file__)
+    file_handler = logging.FileHandler(file_name + '-testing-' + datetime.now().strftime("%Y%m%d-%H%M%S") + '.log')
     logger.setLevel(logging.DEBUG)
     logger.addHandler(file_handler)
     logger.addHandler(logging.StreamHandler(sys.stdout))
-    asyncio.run(multi_region(2))
+    asyncio.run(multi_region(file_name))
     # asyncio.run(create_item())
