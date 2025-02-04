@@ -56,7 +56,10 @@ async def query_items_concurrently(container, num_queries):
 
 async def perform_query(container):
     random_item = get_random_item()
-    results = container.query_items(query="SELECT * FROM c", partition_key=random_item["pk"])
+    results = container.query_items(query="SELECT * FROM c where c.id=@id and c.pk=@pk",
+                                    parameters=[{"name": "@id", "value": random_item["id"]},
+                                                {"name": "@pk", "value": random_item["pk"]}],
+                                    partition_key=random_item["pk"])
     items = [item async for item in results]
 
 
@@ -83,8 +86,8 @@ async def multi_region(client_id):
                 time.sleep(1)
                 await read_item_concurrently(cont, 5)  # Number of concurrent reads
                 time.sleep(1)
-                # await query_items_concurrently(cont, 500)  # Number of concurrent queries
-                # time.sleep(1)
+                await query_items_concurrently(cont, 2)  # Number of concurrent queries
+                time.sleep(1)
                 # await change_feed(cont)
                 # time.sleep(1)
             except Exception as e:
