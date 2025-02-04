@@ -25,8 +25,8 @@ DatabaseAccount with multiple writable and readable locations.
 import collections
 import logging
 import time
-from urllib.parse import urlparse
 from datetime import datetime
+from urllib.parse import urlparse
 
 from . import documents
 from . import http_constants
@@ -36,10 +36,12 @@ from .documents import _OperationType
 
 logger = logging.getLogger("azure.cosmos.LocationCache")
 
+
 class EndpointOperationType(object):
     NoneType = "None"
     ReadType = "Read"
     WriteType = "Write"
+
 
 class RegionalEndpoint(object):
     def __init__(self, c_endpoint: str, p_endpoint: str):
@@ -73,6 +75,7 @@ class RegionalEndpoint(object):
     def unique_endpoints(self):
         return {self.current_endpoint, self.previous_endpoint}
 
+
 def get_endpoints_by_location(new_locations,
                               old_endpoints_by_location,
                               default_regional_endpoint,
@@ -82,8 +85,7 @@ def get_endpoints_by_location(new_locations,
     endpoints_by_location = collections.OrderedDict()
     parsed_locations = []
 
-
-    for new_location in new_locations: # pylint: disable=too-many-nested-blocks
+    for new_location in new_locations:  # pylint: disable=too-many-nested-blocks
         # if name in new_location and same for database account endpoint
         if "name" in new_location and "databaseAccountEndpoint" in new_location:
             if not new_location["name"]:
@@ -95,39 +97,39 @@ def get_endpoints_by_location(new_locations,
                 if new_location["name"] in old_endpoints_by_location:
                     regional_object = old_endpoints_by_location[new_location["name"]]
                     logger.info("%s - In location cache: Existing regional object: %s",
-                                    datetime.now().strftime("%Y%m%d-%H%M%S"), str(regional_object))
-                        current = regional_object.get_current()
-                        # swap the previous with current and current with new region_uri received from the gateway
-                        if current != region_uri:
-                            regional_object.set_previous(current)
-                            regional_object.set_current(region_uri)
-                        logger.info("%s - In location cache: Updated regional object: %s",
-                                    datetime.now().strftime("%Y%m%d-%H%M%S"),
-                                    str(regional_object))
-                    # This is the bootstrapping condition
-                    else:
-                        regional_object = RegionalEndpoint(region_uri, region_uri)
-                        # if it is for writes, then we update the previous to default_endpoint
-                        if writes and not use_multiple_write_locations:
-                            # if region_uri is different than global endpoint set global endpoint
-                            # as fallback
-                            # else construct regional uri
-                            if region_uri != default_regional_endpoint.get_current():
-                                regional_object.set_previous(default_regional_endpoint.get_current())
-                            else:
-                                constructed_region_uri =  LocationCache.GetLocationalEndpoint(
-                                    default_regional_endpoint.get_current(),
-                                    new_location["name"])
-                                regional_object.set_previous(constructed_region_uri)
+                                datetime.now().strftime("%Y%m%d-%H%M%S"), str(regional_object))
+                    current = regional_object.get_current()
+                    # swap the previous with current and current with new region_uri received from the gateway
+                    if current != region_uri:
+                        regional_object.set_previous(current)
+                        regional_object.set_current(region_uri)
+                    logger.info("%s - In location cache: Updated regional object: %s",
+                                datetime.now().strftime("%Y%m%d-%H%M%S"),
+                                str(regional_object))
+                # This is the bootstrapping condition
+                else:
+                    regional_object = RegionalEndpoint(region_uri, region_uri)
+                    # if it is for writes, then we update the previous to default_endpoint
+                    if writes and not use_multiple_write_locations:
+                        # if region_uri is different than global endpoint set global endpoint
+                        # as fallback
+                        # else construct regional uri
+                        if region_uri != default_regional_endpoint.get_current():
+                            regional_object.set_previous(default_regional_endpoint.get_current())
+                        else:
+                            constructed_region_uri = LocationCache.GetLocationalEndpoint(
+                                default_regional_endpoint.get_current(),
+                                new_location["name"])
+                            regional_object.set_previous(constructed_region_uri)
 
-                        logger.info("%s - In location cache: This is regional object on initialization: %s",
-                                    datetime.now().strftime("%Y%m%d-%H%M%S"),
-                                    str(regional_object))
+                    logger.info("%s - In location cache: This is regional object on initialization: %s",
+                                datetime.now().strftime("%Y%m%d-%H%M%S"),
+                                str(regional_object))
 
-                    # pass in object with region uri , last known good, curr etc
-                    endpoints_by_location.update({new_location["name"]: regional_object})
-                except Exception as e:
-                    raise e
+                # pass in object with region uri , last known good, curr etc
+                endpoints_by_location.update({new_location["name"]: regional_object})
+            except Exception as e:
+                raise e
 
     return endpoints_by_location, parsed_locations
 
@@ -137,12 +139,12 @@ class LocationCache(object):  # pylint: disable=too-many-public-methods,too-many
         return int(round(time.time() * 1000))
 
     def __init__(
-        self,
-        preferred_locations,
-        default_endpoint,
-        enable_endpoint_discovery,
-        use_multiple_write_locations,
-        refresh_time_interval_in_ms,
+            self,
+            preferred_locations,
+            default_endpoint,
+            enable_endpoint_discovery,
+            use_multiple_write_locations,
+            refresh_time_interval_in_ms,
     ):
         self.preferred_locations = preferred_locations
         self.default_regional_endpoint = RegionalEndpoint(default_endpoint, default_endpoint)
@@ -156,15 +158,15 @@ class LocationCache(object):  # pylint: disable=too-many-public-methods,too-many
         self.location_unavailability_info_by_endpoint = {}
         self.refresh_time_interval_in_ms = refresh_time_interval_in_ms
         self.last_cache_update_time_stamp = 0
-        self.available_read_regional_endpoints_by_location = {} # pylint: disable=name-too-long
-        self.available_write_regional_endpoints_by_location = {} # pylint: disable=name-too-long
+        self.available_read_regional_endpoints_by_location = {}  # pylint: disable=name-too-long
+        self.available_write_regional_endpoints_by_location = {}  # pylint: disable=name-too-long
         self.available_write_locations = []
         self.available_read_locations = []
 
     def check_and_update_cache(self):
         if (
-            self.location_unavailability_info_by_endpoint
-            and self.current_time_millis() - self.last_cache_update_time_stamp > self.refresh_time_interval_in_ms
+                self.location_unavailability_info_by_endpoint
+                and self.current_time_millis() - self.last_cache_update_time_stamp > self.refresh_time_interval_in_ms
         ):
             self.update_location_cache()
 
@@ -231,8 +233,8 @@ class LocationCache(object):  # pylint: disable=too-many-public-methods,too-many
         )
 
         if not use_preferred_locations or (
-            documents._OperationType.IsWriteOperation(request.operation_type)
-            and not self.can_use_multiple_write_locations_for_request(request)
+                documents._OperationType.IsWriteOperation(request.operation_type)
+                and not self.can_use_multiple_write_locations_for_request(request)
         ):
             # For non-document resource types in case of client can use multiple write locations
             # or when client cannot use multiple write locations, flip-flop between the
@@ -304,12 +306,12 @@ class LocationCache(object):  # pylint: disable=too-many-public-methods,too-many
     def clear_stale_endpoint_unavailability_info(self):
         new_location_unavailability_info = {}
         if self.location_unavailability_info_by_endpoint:
-            for unavailable_endpoint in self.location_unavailability_info_by_endpoint:  #pylint: disable=consider-using-dict-items
+            for unavailable_endpoint in self.location_unavailability_info_by_endpoint:  # pylint: disable=consider-using-dict-items
                 unavailability_info = self.location_unavailability_info_by_endpoint[unavailable_endpoint]
                 if not (
-                    unavailability_info
-                    and self.current_time_millis() - unavailability_info["lastUnavailabilityCheckTimeStamp"]
-                    > self.refresh_time_interval_in_ms
+                        unavailability_info
+                        and self.current_time_millis() - unavailability_info["lastUnavailabilityCheckTimeStamp"]
+                        > self.refresh_time_interval_in_ms
                 ):
                     new_location_unavailability_info[
                         unavailable_endpoint
@@ -335,15 +337,15 @@ class LocationCache(object):  # pylint: disable=too-many-public-methods,too-many
         )
 
         if (
-            expected_available_operation == EndpointOperationType.NoneType
-            or not unavailability_info
-            or expected_available_operation not in unavailability_info["operationType"]
+                expected_available_operation == EndpointOperationType.NoneType
+                or not unavailability_info
+                or expected_available_operation not in unavailability_info["operationType"]
         ):
             return False
 
         if (
-            self.current_time_millis() - unavailability_info["lastUnavailabilityCheckTimeStamp"]
-            > self.refresh_time_interval_in_ms
+                self.current_time_millis() - unavailability_info["lastUnavailabilityCheckTimeStamp"]
+                > self.refresh_time_interval_in_ms
         ):
             return False
         # Unexpired entry present. Endpoint is unavailable
@@ -415,8 +417,8 @@ class LocationCache(object):  # pylint: disable=too-many-public-methods,too-many
         )
         self.last_cache_update_timestamp = self.current_time_millis()  # pylint: disable=attribute-defined-outside-init
 
-    def get_preferred_available_regional_endpoints( # pylint: disable=name-too-long
-        self, endpoints_by_location, orderedLocations, expected_available_operation, fallback_endpoint
+    def get_preferred_available_regional_endpoints(  # pylint: disable=name-too-long
+            self, endpoints_by_location, orderedLocations, expected_available_operation, fallback_endpoint
     ):
         regional_endpoints = []
         health_endpoints = set()
@@ -424,8 +426,8 @@ class LocationCache(object):  # pylint: disable=too-many-public-methods,too-many
         # user passed in during documentClient init
         if self.enable_endpoint_discovery and endpoints_by_location:  # pylint: disable=too-many-nested-blocks
             if (
-                self.can_use_multiple_write_locations()
-                or expected_available_operation == EndpointOperationType.ReadType
+                    self.can_use_multiple_write_locations()
+                    or expected_available_operation == EndpointOperationType.ReadType
             ):
                 unavailable_endpoints = []
                 if self.preferred_locations:
@@ -473,11 +475,11 @@ class LocationCache(object):  # pylint: disable=too-many-public-methods,too-many
 
     def can_use_multiple_write_locations_for_request(self, request):  # pylint: disable=name-too-long
         return self.can_use_multiple_write_locations() and (
-            request.resource_type == http_constants.ResourceType.Document
-            or (
-                request.resource_type == http_constants.ResourceType.StoredProcedure
-                and request.operation_type == documents._OperationType.ExecuteJavaScript
-            )
+                request.resource_type == http_constants.ResourceType.Document
+                or (
+                        request.resource_type == http_constants.ResourceType.StoredProcedure
+                        and request.operation_type == documents._OperationType.ExecuteJavaScript
+                )
         )
 
     @staticmethod
