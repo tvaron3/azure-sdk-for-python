@@ -5,7 +5,6 @@ import sys
 sys.path.append(r"")
 
 import uuid
-from azure.cosmos import PartitionKey
 from azure.cosmos.aio import CosmosClient as AsyncClient
 import asyncio
 
@@ -78,7 +77,7 @@ async def multi_region():
                            enable_diagnostics_logging=True, logger=logger,
                            user_agent="Concurrent-Tomas") as client:
         db = client.get_database_client("SimonDB")
-        cont = await db.create_container_if_not_exists("SimonContainer", PartitionKey("/pk"))
+        cont = await db.create_container_if_not_exists("SimonContainer", "/pk")
         time.sleep(1)
 
         while True:
@@ -96,7 +95,7 @@ async def create_items(client_id):
                            user_agent="Concurrent-Write-Tomas" + str(client_id) + str(
                                client_id) + datetime.now().strftime("%Y%m%d-%H%M%S")) as client:
         db = await client.create_database_if_not_exists("SimonDB")
-        cont = await db.create_container_if_not_exists("SimonContainer", PartitionKey("/pk"))
+        cont = await db.create_container_if_not_exists("SimonContainer", "/pk")
         time.sleep(1)
 
         try:
@@ -112,7 +111,7 @@ async def create_items_initial():
                            enable_diagnostics_logging=True, logger=logger,
                            user_agent="Concurrent-Write-Tomas-") as client:
         db = await client.create_database_if_not_exists("SimonDB")
-        cont = await db.create_container_if_not_exists("SimonContainer", PartitionKey("/pk"))
+        cont = await db.create_container_if_not_exists("SimonContainer", "/pk")
         time.sleep(1)
 
         try:
@@ -133,7 +132,7 @@ async def create_item():
                            enable_diagnostics_logging=True, logger=logger,
                            user_agent="Concurrent-Write-VM-" + datetime.now().strftime("%Y%m%d-%H%M%S")) as client:
         db = await client.create_database_if_not_exists("SimonDB")
-        cont = await db.create_container_if_not_exists("SimonContainer", PartitionKey("/pk"))
+        cont = await db.create_container_if_not_exists("SimonContainer", "/pk")
         time.sleep(1)
 
         try:
