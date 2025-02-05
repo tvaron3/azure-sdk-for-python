@@ -71,6 +71,9 @@ class RegionalEndpoint(object):
         temp = self.current_endpoint
         self.current_endpoint = self.previous_endpoint
         self.previous_endpoint = temp
+        logger.warning("%s - Swapped regional endpoint values: ",
+                       datetime.now().strftime("%Y%m%d-%H%M%S"),
+                       " - Current: " + self.current_endpoint + " ,Previous: " + self.previous_endpoint)
 
 
 def get_endpoints_by_location(new_locations,
@@ -214,9 +217,6 @@ class LocationCache(object):  # pylint: disable=too-many-public-methods,too-many
                            datetime.now().strftime("%Y%m%d-%H%M%S"),
                            str(regional_endpoint))
             regional_endpoint.swap()
-            logger.warning("%s - Swapped regional endpoint values: %s",
-                           datetime.now().strftime("%Y%m%d-%H%M%S"),
-                           str(regional_endpoint))
 
     def resolve_service_endpoint(self, request):
         if request.location_endpoint_to_route:
@@ -347,6 +347,10 @@ class LocationCache(object):  # pylint: disable=too-many-public-methods,too-many
         return True
 
     def mark_endpoint_unavailable(self, unavailable_endpoint: str, unavailable_operation_type, refresh_cache: bool):
+        logger.warning("%s - Marking %s unavailable for %s ",
+                            datetime.now().strftime("%Y%m%d-%H%M%S"),
+                       unavailable_endpoint,
+                       unavailable_operation_type)
         unavailability_info = (
             self.location_unavailability_info_by_endpoint[unavailable_endpoint]
             if unavailable_endpoint in self.location_unavailability_info_by_endpoint

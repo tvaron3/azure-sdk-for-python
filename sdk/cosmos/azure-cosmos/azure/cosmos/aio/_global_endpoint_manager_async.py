@@ -124,8 +124,8 @@ class _GlobalEndpointManager(object):
 
         Validating if the endpoint is healthy else marking it as unavailable.
         """
-        all_endpoints = set(self.location_cache.read_regional_endpoints[0])
-        all_endpoints.update(self.location_cache.write_regional_endpoints)
+        all_endpoints = [self.location_cache.read_regional_endpoints[0]]
+        all_endpoints.extend(self.location_cache.write_regional_endpoints)
         count = 0
         for endpoint in all_endpoints:
             count += 1
