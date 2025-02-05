@@ -71,9 +71,8 @@ class RegionalEndpoint(object):
         temp = self.current_endpoint
         self.current_endpoint = self.previous_endpoint
         self.previous_endpoint = temp
-        logger.warning("%s - Swapped regional endpoint values: ",
-                       datetime.now().strftime("%Y%m%d-%H%M%S"),
-                       " - Current: " + self.current_endpoint + " ,Previous: " + self.previous_endpoint)
+        logger.warning("Swapped regional endpoint values: Current: " + self.current_endpoint +
+                       " ,Previous: " + self.previous_endpoint)
 
 
 def get_endpoints_by_location(new_locations,
@@ -347,8 +346,7 @@ class LocationCache(object):  # pylint: disable=too-many-public-methods,too-many
         return True
 
     def mark_endpoint_unavailable(self, unavailable_endpoint: str, unavailable_operation_type, refresh_cache: bool):
-        logger.warning("%s - Marking %s unavailable for %s ",
-                            datetime.now().strftime("%Y%m%d-%H%M%S"),
+        logger.warning("Marking %s unavailable for %s ",
                        unavailable_endpoint,
                        unavailable_operation_type)
         unavailability_info = (
