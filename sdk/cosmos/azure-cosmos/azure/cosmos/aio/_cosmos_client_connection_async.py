@@ -31,6 +31,8 @@ from typing import (
     Sequence, Tuple, Type, Union, cast
 )
 
+import aiohttp
+from aiohttp import TCPConnector
 from typing_extensions import TypedDict
 from urllib3.util.retry import Retry
 
@@ -228,7 +230,8 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
         self.pipeline_client: AsyncPipelineClient[HttpRequest, AsyncHttpResponse] = AsyncPipelineClient(
             base_url=url_connection,
             transport=transport,
-            policies=policies
+            policies=policies,
+            force_close=True
         )
         self._setup_kwargs: Dict[str, Any] = kwargs
         self.session: Optional[_session.Session] = None

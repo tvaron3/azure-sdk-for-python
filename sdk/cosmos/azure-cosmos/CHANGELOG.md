@@ -10,6 +10,7 @@
 * Fixed how the environment variables in the sdk are parsed. See [PR 40303](https://github.com/Azure/azure-sdk-for-python/pull/40303).
 
 #### Other Changes
+* Connection pools with the default transport will no longer be used for more than 5 minutes. See 
 
 ### 4.10.0b4 (2025-04-01)
 
