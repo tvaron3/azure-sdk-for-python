@@ -232,7 +232,7 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
         if not transport:
             # Use private import for better typing, mypy and pyright don't like PEP562
             from azure.core.pipeline.transport._aiohttp import AioHttpTransport
-            conn = aiohttp.TCPConnector(ttl_dns_cache=60)
+            conn = aiohttp.TCPConnector(keepalive_timeout=.1)
             session = aiohttp.ClientSession(connector=conn)
 
             transport = AioHttpTransport(session=session, **kwargs)
