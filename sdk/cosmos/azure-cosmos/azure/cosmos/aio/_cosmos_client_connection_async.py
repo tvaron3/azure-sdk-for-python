@@ -229,13 +229,6 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
         ]
 
         transport = kwargs.pop("transport", None)
-        if not transport:
-            # Use private import for better typing, mypy and pyright don't like PEP562
-            from azure.core.pipeline.transport._aiohttp import AioHttpTransport
-            conn = aiohttp.TCPConnector(keepalive_timeout=.1)
-            session = aiohttp.ClientSession(connector=conn)
-
-            transport = AioHttpTransport(session=session, **kwargs)
 
         self.pipeline_client: AsyncPipelineClient[HttpRequest, AsyncHttpResponse] = AsyncPipelineClient(
             base_url=url_connection,
