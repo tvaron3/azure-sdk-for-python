@@ -5,7 +5,11 @@ NO_REMOVE_LOGS=false
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
+<<<<<<< HEAD
         --do-not-remove-logs)
+=======
+        --no-remove-logs)
+>>>>>>> 304ecd8cc9 (change workloads based on feedback)
             NO_REMOVE_LOGS=true
             ;;
         *)

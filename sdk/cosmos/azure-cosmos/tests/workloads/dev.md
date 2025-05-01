@@ -9,14 +9,23 @@ file when run. These logs are named in this format `<file name>-<process id>-<da
    - 32 GB RAM
    - Ubuntu
    - Accelerated networking
+<<<<<<< HEAD
 1. Give the VM necessary [permissions](https://learn.microsoft.com/azure/cosmos-db/nosql/how-to-grant-data-plane-access?tabs=built-in-definition%2Ccsharp&pivots=azure-interface-cli) to access the Cosmos DB account if using AAD (Optional). 
 1. Create an Azure App Insights Resource (Optional)
+=======
+1. Create a Azure App Insights Resource (Optional)
+>>>>>>> 304ecd8cc9 (change workloads based on feedback)
 1. Fork and clone this repository
 1. Go to azure cosmos folder
    - `cd azure-sdk-for-python/sdk/cosmos/azure-cosmos`
 1. Install the required packages and create virtual environment
    - `setup_env.sh` 
    - `source azure-cosmosdb-sdk-environment/bin/activate`
+<<<<<<< HEAD
+=======
+   - `pip install -r dev_requirements.txt`
+   - `pip install azure-monitor-opentelemetry`
+>>>>>>> 304ecd8cc9 (change workloads based on feedback)
 1. Checkout the branch with the changes to test. 
 1. Install azure-cosmos
    - `pip install .`
@@ -40,6 +49,10 @@ file when run. These logs are named in this format `<file name>-<process id>-<da
 
 ### Close Workloads
 - If you want to keep the logs and stop the scripts,  
+<<<<<<< HEAD
    `./shutdown_workloads.sh --do-not-remove-logs` 
+=======
+   `./shutdown_workloads.sh --no-remove-logs` 
+>>>>>>> 304ecd8cc9 (change workloads based on feedback)
 - If you want to remove the logs and stop the scripts,        
    `./shutdown_workloads.sh`
