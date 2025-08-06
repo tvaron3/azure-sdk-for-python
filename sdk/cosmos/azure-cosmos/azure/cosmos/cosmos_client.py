@@ -517,8 +517,7 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
 
         if query:
             result = self.client_connection.QueryDatabases(
-                query=query if parameters is None else {
-                    'query': query, 'parameters': parameters},
+                query=query if parameters is None else { 'query': query, 'parameters': parameters},
                 options=feed_options,
                 **kwargs
             )

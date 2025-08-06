@@ -34,7 +34,7 @@ from urllib.parse import quote as urllib_quote
 from urllib.parse import urlsplit
 from azure.core import MatchConditions
 
-from . import documents
+from . import documents, QueryEngine
 from . import http_constants
 from . import _runtime_constants
 from ._constants import _Constants as Constants
@@ -340,6 +340,14 @@ def _is_session_token_request(
                  or request_object.operation_type == "Batch"
                  or cosmos_client_connection._global_endpoint_manager.can_use_multiple_write_locations(request_object)))
 
+def get_query_engine(
+        client_query_engine: Optional[QueryEngine],
+        options: Mapping[str, Any]
+) -> Optional[QueryEngine]:
+   if options["queryEngine"] is not None:
+        # If query engine is provided in options, use it
+        return options["queryEngine"]
+   return client_query_engine
 
 def set_session_token_header(
         cosmos_client_connection: Union["CosmosClientConnection", "AsyncClientConnection"],
