@@ -32,7 +32,7 @@ from azure.core.paging import ItemPaged
 from azure.core.tracing.decorator import distributed_trace
 from azure.cosmos._change_feed.change_feed_utils import add_args_to_kwargs, validate_kwargs
 
-from . import _utils as utils
+from . import _utils as utils, QueryEngine
 from ._base import (
     build_options,
     validate_cache_staleness_value,
@@ -303,6 +303,7 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         priority: Optional[Literal["High", "Low"]] = None,
         throughput_bucket: Optional[int] = None,
         response_hook: Optional[Callable[[Mapping[str, str], Dict[str, Any]], None]] = None,
+        query_engine: Optional[QueryEngine] = None,
         **kwargs: Any
     ) -> ItemPaged[Dict[str, Any]]:
         """List all the items in the container.
@@ -323,6 +324,7 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
             in this list are specified as the names of the azure Cosmos locations like, 'West US', 'East US' and so on.
             If all preferred locations were excluded, primary/hub location will be used.
             This excluded_location will override existing excluded_locations in client level.
+        :keyword query_engine.QueryEngine query_engine: An optional client query engine to use for executing queries.
         :returns: An Iterable of items (dicts).
         :rtype: Iterable[Dict[str, Any]]
         """
@@ -348,6 +350,8 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         if max_integrated_cache_staleness_in_ms:
             validate_cache_staleness_value(max_integrated_cache_staleness_in_ms)
             feed_options["maxIntegratedCacheStaleness"] = max_integrated_cache_staleness_in_ms
+        if utils.valid_key_value_exist(kwargs, Constants.Kwargs.QUERY_ENGINE):
+            feed_options[Constants.Kwargs.QUERY_ENGINE] = kwargs.pop(Constants.Kwargs.QUERY_ENGINE)
         if response_hook and hasattr(response_hook, "clear"):
             response_hook.clear()
 
@@ -612,6 +616,7 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
             response_hook: Optional[Callable[[Mapping[str, str], Dict[str, Any]], None]] = None,
             session_token: Optional[str] = None,
             throughput_bucket: Optional[int] = None,
+            query_engine: Optional[QueryEngine] = None,
             **kwargs: Any
     ):
         """Return all results matching the given `query`.
@@ -656,6 +661,7 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         :paramtype response_hook: Callable[[Mapping[str, str], Dict[str, Any]], None]
         :keyword str session_token: Token for use with Session consistency.
         :keyword int throughput_bucket: The desired throughput bucket for the client.
+        :keyword query_engine.QueryEngine query_engine: An optional client query engine to use for executing queries.
         :returns: An Iterable of items (dicts).
         :rtype: ItemPaged[Dict[str, Any]]
 
@@ -696,6 +702,7 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
             response_hook: Optional[Callable[[Mapping[str, str], Dict[str, Any]], None]] = None,
             session_token: Optional[str] = None,
             throughput_bucket: Optional[int] = None,
+            query_engine: Optional[QueryEngine] = None,
             **kwargs: Any
     ):
         """Return all results matching the given `query`.
@@ -739,6 +746,7 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         :paramtype response_hook: Callable[[Mapping[str, str], Dict[str, Any]], None]
         :keyword str session_token: Token for use with Session consistency.
         :keyword int throughput_bucket: The desired throughput bucket for the client.
+        :keyword query_engine.QueryEngine query_engine: An optional client query engine to use for executing queries.
         :returns: An Iterable of items (dicts).
         :rtype: ItemPaged[Dict[str, Any]]
 
@@ -810,6 +818,7 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         :paramtype response_hook: Callable[[Mapping[str, str], Dict[str, Any]], None]
         :keyword str session_token: Token for use with Session consistency.
         :keyword int throughput_bucket: The desired throughput bucket for the client.
+        :keyword query_engine.QueryEngine query_engine: An optional client query engine to use for executing queries.
         :returns: An Iterable of items (dicts).
         :rtype: ItemPaged[Dict[str, Any]]
 
@@ -855,6 +864,8 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
             feed_options["maxIntegratedCacheStaleness"] = max_integrated_cache_staleness_in_ms
         if utils.valid_key_value_exist(kwargs, "continuation_token_limit"):
             feed_options["responseContinuationTokenLimitInKb"] = kwargs.pop("continuation_token_limit")
+        if utils.valid_key_value_exist(kwargs, Constants.Kwargs.QUERY_ENGINE):
+            feed_options[Constants.Kwargs.QUERY_ENGINE] = kwargs.pop(Constants.Kwargs.QUERY_ENGINE)
         feed_options["correlatedActivityId"] = GenerateGuidId()
         feed_options["containerRID"] = self.__get_client_container_caches()[self.container_link]["_rid"]
 

@@ -344,9 +344,9 @@ def get_query_engine(
         client_query_engine: Optional[QueryEngine],
         options: Mapping[str, Any]
 ) -> Optional[QueryEngine]:
-   if options["queryEngine"] is not None:
+   if options[Constants.Kwargs.QUERY_ENGINE] is not None:
         # If query engine is provided in options, use it
-        return options["queryEngine"]
+        return options[Constants.Kwargs.QUERY_ENGINE]
    return client_query_engine
 
 def set_session_token_header(
