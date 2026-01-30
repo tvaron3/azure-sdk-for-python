@@ -22,6 +22,7 @@
 """Create, read, and delete databases in the Azure Cosmos DB SQL API service.
 """
 
+import os
 import warnings
 from typing import Any, Iterable, Mapping, Optional, Union, cast, Callable, overload, Literal, TYPE_CHECKING
 
@@ -215,6 +216,10 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
     :paramtype availability_strategy: Union[bool, dict[str, Any]]
     :keyword ~concurrent.futures.thread.ThreadPoolExecutor availability_strategy_executor:
         Optional ThreadPoolExecutor for handling concurrent operations.
+    :keyword dict[str, Any] mirror_config: Fabric mirror configuration for per-request query routing.
+        When provided, individual queries can use ``use_mirror_serving=True`` to route through Fabric mirror.
+        Required keys: server (Fabric SQL endpoint), database (database name).
+        Optional keys: credential, fabric_table, fabric_schema.
 
     .. admonition:: Example:
 
@@ -236,6 +241,9 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
         """Instantiate a new CosmosClient.
         """
 
+        # Extract mirror serving configuration for per-request use
+        mirror_config = kwargs.pop('mirror_config', None)
+
         auth = _build_auth(credential)
         connection_policy = _build_connection_policy(kwargs)
         self.client_connection = CosmosClientConnection(
@@ -245,6 +253,7 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
             connection_policy=connection_policy,
             availability_strategy=kwargs.pop("availability_strategy", False),
             availability_strategy_executor=kwargs.pop("availability_strategy_executor", None),
+            mirror_config=mirror_config,
             **kwargs
         )
 
