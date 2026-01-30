@@ -1016,12 +1016,18 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
                     "Please provide mirror_config parameter to CosmosClient constructor."
                 )
 
+            # Build mirror config with container name as fabric_table
+            # (unless table_override is specified)
+            mirror_config_with_table = dict(self.client_connection._mirror_config)
+            if "table_override" not in mirror_config_with_table and "fabric_table" not in mirror_config_with_table:
+                mirror_config_with_table["fabric_table"] = self.container_id
+
             # Delegate to mapper
             try:
                 return execute_mirrored_query(
                     query=query_str,
                     parameters=parameters,
-                    mirror_config=self.client_connection._mirror_config,
+                    mirror_config=mirror_config_with_table,
                 )
             except MirrorServingNotAvailableError:
                 # Re-raise with context
