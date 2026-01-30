@@ -1020,7 +1020,7 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
             # (unless table_override is specified)
             mirror_config_with_table = dict(self.client_connection._mirror_config)
             if "table_override" not in mirror_config_with_table and "fabric_table" not in mirror_config_with_table:
-                mirror_config_with_table["fabric_table"] = self.container_id
+                mirror_config_with_table["fabric_table"] = self.id  # Use self.id, not self.container_id
 
             # Delegate to mapper
             try:
