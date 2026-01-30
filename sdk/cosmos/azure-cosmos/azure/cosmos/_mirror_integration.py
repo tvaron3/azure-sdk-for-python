@@ -82,12 +82,14 @@ def execute_mirrored_query(
     from azure_cosmos_fabric_mapper.credentials import DefaultAzureSqlCredential
     from azure_cosmos_fabric_mapper.driver import get_driver_client
 
-    # Build configuration
+    # Build configuration - normalize key names from SDK to mapper
+    # SDK uses: server, database, table_override (optional), credential
+    # Mapper expects: fabric_server, fabric_database, fabric_table, fabric_schema
     config = MirrorServingConfiguration(
-        fabric_server=mirror_config["fabric_server"],
-        fabric_database=mirror_config["fabric_database"],
-        fabric_table=mirror_config["fabric_table"],
-        fabric_schema=mirror_config.get("fabric_schema", "dbo"),
+        fabric_server=mirror_config["server"],
+        fabric_database=mirror_config["database"],
+        fabric_table=mirror_config.get("table_override", mirror_config.get("fabric_table", "")),
+        fabric_schema=mirror_config.get("fabric_schema", mirror_config["database"]),  # Default schema = database name
     )
 
     # Create request - pass parameters as-is since the mapper expects
