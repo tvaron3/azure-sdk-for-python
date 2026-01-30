@@ -40,6 +40,7 @@ from ._change_feed.feed_range_internal import FeedRangeInternalEpk
 from ._constants import _Constants as Constants, TimeoutScope
 from ._cosmos_client_connection import CosmosClientConnection
 from ._cosmos_responses import CosmosDict, CosmosList
+from ._mirror_integration import execute_mirrored_query, MirrorServingNotAvailableError
 from ._routing.routing_range import Range
 from ._session_token_helpers import get_latest_session_token
 from .exceptions import CosmosHttpResponseError
@@ -1005,6 +1006,34 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         # Set query with 'query' and 'parameters' from kwargs
         query_str = kwargs.pop("query", None)
         parameters = kwargs.pop("parameters", None)
+        
+        # NEW: Check if mirror serving is enabled
+        if self.client_connection._enable_mirror_serving:
+            # Validate configuration
+            if not self.client_connection._mirror_config:
+                raise ValueError(
+                    "Mirror serving is enabled but mirror_config is not provided. "
+                    "Please provide mirror_config parameter to CosmosClient constructor."
+                )
+
+            # Delegate to mapper
+            try:
+                return execute_mirrored_query(
+                    query=query_str,
+                    parameters=parameters,
+                    mirror_config=self.client_connection._mirror_config,
+                )
+            except MirrorServingNotAvailableError:
+                # Re-raise with context
+                raise
+            except Exception as exc:
+                # Wrap mapper exceptions with context
+                raise RuntimeError(
+                    f"Mirror serving query failed: {exc}. "
+                    "You can disable mirror serving with enable_mirror_serving=False"
+                ) from exc
+        
+        # EXISTING: Default Cosmos execution path
         if parameters is not None:
             query = {"query": query_str, "parameters": parameters}
         else:

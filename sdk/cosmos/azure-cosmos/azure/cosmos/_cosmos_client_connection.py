@@ -148,6 +148,11 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
         self.availability_strategy_config: Optional[CrossRegionHedgingStrategyConfig] =\
             _validate_hedging_config(availability_strategy_config)
         self.availability_strategy_executor: Optional[ThreadPoolExecutor] = availability_strategy_executor
+        
+        # Mirror serving configuration
+        self._enable_mirror_serving = kwargs.pop('enable_mirror_serving', False)
+        self._mirror_config = kwargs.pop('mirror_config', None)
+        
         self.master_key: Optional[str] = None
         self.resource_tokens: Optional[Mapping[str, Any]] = None
         self.aad_credentials: Optional[TokenCredential] = None
