@@ -149,8 +149,7 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
             _validate_hedging_config(availability_strategy_config)
         self.availability_strategy_executor: Optional[ThreadPoolExecutor] = availability_strategy_executor
         
-        # Mirror serving configuration
-        self._enable_mirror_serving = kwargs.pop('enable_mirror_serving', False)
+        # Mirror serving configuration (for per-request routing)
         self._mirror_config = kwargs.pop('mirror_config', None)
         
         self.master_key: Optional[str] = None

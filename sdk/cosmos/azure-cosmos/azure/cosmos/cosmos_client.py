@@ -209,14 +209,14 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
         The threshold-based availability strategy to use for this request.
     :keyword ~concurrent.futures.thread.ThreadPoolExecutor availability_strategy_executor:
         Optional ThreadPoolExecutor for handling concurrent operations.
-    :keyword bool enable_mirror_serving: If True, queries will be routed to Fabric mirror when configured.
-        Requires azure-cosmos-fabric-mapper package to be installed. Defaults to False.
-        Can also be enabled via COSMOS_ENABLE_MIRROR_SERVING environment variable.
-    :keyword dict[str, Any] mirror_config: Fabric mirror configuration dict with keys:
-        - fabric_server: Fabric SQL endpoint (required if enable_mirror_serving=True)
-        - fabric_database: Database name (required if enable_mirror_serving=True)
-        - fabric_table: Table name (required if enable_mirror_serving=True)
-        - fabric_schema: Schema name (default: "dbo")
+    :keyword dict[str, Any] mirror_config: Fabric mirror configuration for per-request query routing.
+        When provided, individual queries can use use_mirror_serving=True to route through Fabric mirror.
+        Requires azure-cosmos-fabric-mapper package to be installed.
+        Configuration dict with keys:
+        - server: Fabric SQL endpoint (required)
+        - database: Database name (required)
+        - credential: Azure credential for authentication (required)
+        - table_override: Optional table name override (defaults to container name)
 
     .. admonition:: Example:
 
@@ -240,11 +240,7 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
         """Instantiate a new CosmosClient.
         """
 
-        # Extract and store mirror serving configuration
-        enable_mirror_serving = kwargs.pop(
-            'enable_mirror_serving',
-            os.getenv('COSMOS_ENABLE_MIRROR_SERVING', '').lower() == 'true'
-        )
+        # Extract and store mirror serving configuration for per-request use
         mirror_config = kwargs.pop('mirror_config', None)
 
         auth = _build_auth(credential)
@@ -256,7 +252,6 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
             connection_policy=connection_policy,
             availability_strategy_config=availability_strategy_config,
             availability_strategy_executor=availability_strategy_executor,
-            enable_mirror_serving=enable_mirror_serving,
             mirror_config=mirror_config,
             **kwargs
         )
