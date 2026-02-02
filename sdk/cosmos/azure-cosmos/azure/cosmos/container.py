@@ -1072,20 +1072,22 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         query_str = kwargs.pop("query", None)
         parameters = kwargs.pop("parameters", None)
         
-        # NEW: Check if mirror serving is enabled
-        if self.client_connection._enable_mirror_serving:
-            # Validate configuration
+        # NEW: Check if mirror serving is requested for this specific query
+        use_mirror_serving = kwargs.pop("use_mirror_serving", False)
+        
+        if use_mirror_serving:
+            # Validate mirror_config exists
             if not self.client_connection._mirror_config:
                 raise ValueError(
-                    "Mirror serving is enabled but mirror_config is not provided. "
-                    "Please provide mirror_config parameter to CosmosClient constructor."
+                    "use_mirror_serving=True requires mirror_config to be provided in CosmosClient constructor. "
+                    "Example: CosmosClient(url=..., credential=..., mirror_config={'server': '...', 'database': '...', 'credential': ...})"
                 )
 
             # Build mirror config with container name as fabric_table
             # (unless table_override is specified)
             mirror_config_with_table = dict(self.client_connection._mirror_config)
             if "table_override" not in mirror_config_with_table and "fabric_table" not in mirror_config_with_table:
-                mirror_config_with_table["fabric_table"] = self.id  # Use self.id, not self.container_id
+                mirror_config_with_table["fabric_table"] = self.id
 
             # Delegate to mapper
             try:
@@ -1101,7 +1103,7 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
                 # Wrap mapper exceptions with context
                 raise RuntimeError(
                     f"Mirror serving query failed: {exc}. "
-                    "You can disable mirror serving with enable_mirror_serving=False"
+                    "Set use_mirror_serving=False to query Cosmos DB directly."
                 ) from exc
         
         # EXISTING: Default Cosmos execution path

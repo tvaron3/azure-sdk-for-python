@@ -78,11 +78,10 @@ from azure.identity import DefaultAzureCredential
 
 credential = DefaultAzureCredential()
 
-# Create client with mirror serving enabled
+# Create client with mirror configuration
 client = CosmosClient(
     url="https://your-account.documents.azure.com:443/",
     credential=credential,
-    enable_mirror_serving=True,
     mirror_config={
         "server": "your-warehouse.datawarehouse.fabric.microsoft.com",
         "database": "your-database",
@@ -93,14 +92,24 @@ client = CosmosClient(
 database = client.get_database_client("your-database")
 container = database.get_container_client("your-container")
 
-# All queries automatically route to Fabric mirror!
+# Route queries individually using use_mirror_serving parameter
+
+# Point read from Cosmos DB (fast, low latency)
+item = container.query_items(
+    query="SELECT * FROM c WHERE c.id = @id",
+    parameters=[{"name": "@id", "value": "123"}],
+    use_mirror_serving=False  # or omit (default=False)
+)
+
+# Aggregation from Fabric mirror (cheaper, supports GROUP BY)
 results = container.query_items(
     query="""
         SELECT c.category, COUNT(1) as itemCount, AVG(c.price) as avgPrice
         FROM c
         WHERE c.status = 'active'
         GROUP BY c.category
-    """
+    """,
+    use_mirror_serving=True  # Route to Fabric mirror
 )
 
 for item in results:
@@ -117,6 +126,7 @@ for item in results:
    FROM c
    GROUP BY c.region
    ```
+   **Usage:** `container.query_items(query=..., use_mirror_serving=True)`
 
 2. **Complex aggregations across partitions**
    ```sql
@@ -128,6 +138,7 @@ for item in results:
    FROM c
    GROUP BY c.department
    ```
+   **Usage:** `container.query_items(query=..., use_mirror_serving=True)`
 
 3. **ORDER BY for analytical queries**
    ```sql
@@ -135,28 +146,40 @@ for item in results:
    FROM c
    ORDER BY c.sales DESC
    ```
+   **Usage:** `container.query_items(query=..., use_mirror_serving=True)`
 
 4. **Data warehouse-style reporting**
    - Multi-partition aggregations
    - Complex analytical queries
    - Large result sets with filtering and sorting
+   
+   **Usage:** `container.query_items(query=..., use_mirror_serving=True)`
 
 ### ⚠️ USE COSMOS DB DIRECT for:
 
 1. **Point lookups** (partition key + ID)
    ```python
    container.read_item(item="doc-123", partition_key="2024-01-01")
+   # or
+   container.query_items(
+       query="SELECT * FROM c WHERE c.partitionKey = @pk AND c.id = @id",
+       parameters=[...],
+       use_mirror_serving=False  # or omit
+   )
    ```
 
 2. **Simple queries with small result sets**
    ```sql
    SELECT * FROM c WHERE c.partitionKey = 'user-123' AND c.type = 'order'
    ```
+   **Usage:** `container.query_items(query=..., use_mirror_serving=False)` or omit parameter
 
 3. **Low-latency requirements** (<100ms)
    - Real-time applications
    - Interactive UIs
    - Single-partition queries
+   
+   **Usage:** `container.query_items(query=..., use_mirror_serving=False)` or omit parameter
 
 ## Environment Variable Support
 
