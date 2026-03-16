@@ -191,12 +191,15 @@ class ResultProcessor:
                         rows = []
                         eval_row_lookup = {}
                 else:
-                    self.logger.debug(f"No evaluation results available for {strategy_name}/{risk_category}")
+                    self.logger.debug(
+                        f"Using scorer results from data file for {strategy_name}/{risk_category} "
+                        f"(no separate evaluation pass)"
+                    )
 
                 # Process data file to extract conversations
                 if data_file and os.path.exists(data_file):
                     try:
-                        with open(data_file, "r") as f:
+                        with open(data_file, "r", encoding="utf-8") as f:
                             for line in f:
                                 try:
                                     conv_data = json.loads(line)
@@ -280,6 +283,19 @@ class ResultProcessor:
                                                                 else None
                                                             ),
                                                         }
+                                        elif "attack_success" in conv_data:
+                                            # Foundry path: RAIServiceScorer already evaluated during
+                                            # attack execution. Use scorer results from the JSONL.
+                                            attack_success = conv_data["attack_success"]
+                                            score_data = conv_data.get("score", {})
+                                            if score_data and isinstance(score_data, dict):
+                                                score_metadata = score_data.get("metadata", {})
+                                                raw_score = score_metadata.get("raw_score")
+                                                if raw_score is not None:
+                                                    risk_assessment[risk_category] = {
+                                                        "severity_label": get_harm_severity_level(raw_score),
+                                                        "reason": score_data.get("rationale", ""),
+                                                    }
 
                                         # Add to tracking arrays for statistical analysis
                                         converters.append(strategy_name)
@@ -579,11 +595,20 @@ class ResultProcessor:
                             sample_payload["usage"] = usage_dict
                             break
 
-        # Exclude risk_sub_type and _eval_run_output_item from metadata
+        # Exclude internal/scorer fields from metadata
         metadata = {
             key: value
             for key, value in raw_conversation.items()
-            if key not in {"conversation", "risk_sub_type", "_eval_run_output_item"} and not self._is_missing(value)
+            if key
+            not in {
+                "conversation",
+                "risk_sub_type",
+                "_eval_run_output_item",
+                "attack_success",
+                "attack_strategy",
+                "score",
+            }
+            and not self._is_missing(value)
         }
         if metadata:
             sample_payload["metadata"] = metadata
@@ -1494,7 +1519,10 @@ class ResultProcessor:
     ) -> str:
         """Determine the run-level status based on red team info status values."""
 
-        # Check if any tasks are still incomplete/failed
+        # Check if any tasks are incomplete/failed/were never executed.
+        # By the time this method is called the scan is finished, so "pending"
+        # (category was skipped or never ran) and "running" are also terminal
+        # failures rather than signs of ongoing work.
         if isinstance(red_team_info, dict):
             for risk_data in red_team_info.values():
                 if not isinstance(risk_data, dict):
@@ -1503,10 +1531,8 @@ class ResultProcessor:
                     if not isinstance(details, dict):
                         continue
                     status = details.get("status", "").lower()
-                    if status in ("incomplete", "failed", "timeout"):
+                    if status in ("incomplete", "failed", "timeout", "pending", "running"):
                         return "failed"
-                    elif status in ("running", "pending"):
-                        return "in_progress"
 
         return "completed"
 

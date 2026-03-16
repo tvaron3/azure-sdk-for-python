@@ -23,7 +23,7 @@ USAGE:
 
     Before running the sample:
 
-    pip install "azure-ai-projects>=2.0.0b4" python-dotenv
+    pip install "azure-ai-projects>=2.0.0" python-dotenv
 
     Set these environment variables with your own values:
     1) AZURE_AI_PROJECT_ENDPOINT - The Azure AI Project endpoint, as found in the Overview
@@ -54,9 +54,7 @@ with (
     project_client.get_openai_client() as openai_client,
 ):
     # [START tool_declaration]
-    tool = WebSearchTool(
-        user_location=WebSearchApproximateLocation(country="GB", city="London", region="London")
-    )
+    tool = WebSearchTool(user_location=WebSearchApproximateLocation(country="GB", city="London", region="London"))
     # [END tool_declaration]
     # Create Agent with web search tool
     agent = project_client.agents.create_version(
