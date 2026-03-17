@@ -18,7 +18,7 @@
 
 ### 4.15.0 (2026-02-19)
 > [!IMPORTANT]
-> We strongly recommend our customers to use at least version 4.15.0 of `azure-cosmos`.
+> We strongly recommend that customers use at least version 4.15.0 of `azure-cosmos`.
 
 #### Features Added
 * GA support of Per Partition Automatic Failover and AvailabilityStrategy features.
