@@ -146,7 +146,6 @@ class TestChangeAllVersionsFeed:
         assert_change_feed(expected_change_feeds, actual_change_feeds)
         setup["created_db"].delete_container(container_name)
 
-    @pytest.mark.skip(reason="not supported in emulator yet")
     def test_query_change_feed_all_versions_and_deletes_start_time(self, setup):
         partition_key = 'pk'
         # 'retentionDuration' was required to enable `ALL_VERSIONS_AND_DELETES` for Emulator testing
