@@ -46,7 +46,8 @@ from .._cosmos_responses import CosmosDict, CosmosList, CosmosAsyncItemPaged
 from .._constants import _Constants as Constants, TimeoutScope
 from .._routing.routing_range import Range
 from .._session_token_helpers import get_latest_session_token
-from ..exceptions import CosmosHttpResponseError
+from ..exceptions import CosmosHttpResponseError, MirrorServingNotAvailableError
+from .._mirror_integration import execute_mirrored_query
 from ..offer import ThroughputProperties
 from ..partition_key import (_get_partition_key_from_partition_key_definition, PartitionKeyType,
                              _return_undefined_or_empty_partition_key, NonePartitionKeyValue, NullPartitionKeyValue)
@@ -558,6 +559,7 @@ class ContainerProxy:
             session_token: Optional[str] = None,
             throughput_bucket: Optional[int] = None,
             availability_strategy: Optional[Union[bool, dict[str, Any]]] = None,
+            use_mirror_serving: Optional[bool] = None,
             **kwargs: Any
     ) -> CosmosAsyncItemPaged:
         """Return all results matching the given `query`.
@@ -655,6 +657,7 @@ class ContainerProxy:
             session_token: Optional[str] = None,
             throughput_bucket: Optional[int] = None,
             availability_strategy: Optional[Union[bool, dict[str, Any]]] = None,
+            use_mirror_serving: Optional[bool] = None,
             **kwargs: Any
     ) -> CosmosAsyncItemPaged:
         """Return all results matching the given `query`.
@@ -748,6 +751,7 @@ class ContainerProxy:
             session_token: Optional[str] = None,
             throughput_bucket: Optional[int] = None,
             availability_strategy: Optional[Union[bool, dict[str, Any]]] = None,
+            use_mirror_serving: Optional[bool] = None,
             **kwargs: Any
     ) -> CosmosAsyncItemPaged:
         """Return all results matching the given `query`.
@@ -904,6 +908,45 @@ class ContainerProxy:
         """
         original_positional_arg_names = ["query"]
         utils.add_args_to_kwargs(original_positional_arg_names, args, kwargs)
+
+        # Check if mirror serving is requested — early return before feed_options computation
+        use_mirror_serving = kwargs.pop("use_mirror_serving", False)
+
+        if use_mirror_serving:
+            query_str = kwargs.pop("query", None)
+            parameters = kwargs.pop("parameters", None)
+            response_hook = kwargs.pop("response_hook", None)
+
+            if not query_str:
+                raise ValueError("query is required when use_mirror_serving=True")
+
+            if not self.client_connection.mirror_config:
+                raise ValueError(
+                    "use_mirror_serving=True requires mirror_config to be provided "
+                    "in CosmosClient constructor."
+                )
+
+            mirror_config_with_table = dict(self.client_connection.mirror_config)
+            if "table_override" not in mirror_config_with_table and "fabric_table" not in mirror_config_with_table:
+                mirror_config_with_table["fabric_table"] = self.id
+
+            results, driver_client = await asyncio.to_thread(
+                execute_mirrored_query,
+                query=query_str,
+                parameters=parameters,
+                mirror_config=mirror_config_with_table,
+                cached_client=self.client_connection._mirror_driver_client,
+            )
+            self.client_connection._mirror_driver_client = driver_client
+
+            if response_hook and hasattr(response_hook, "clear"):
+                response_hook.clear()
+
+            return AsyncItemPaged(
+                command=lambda *a, **kw: (results, {}),
+                page_iterator_class=None
+            )
+
         feed_options = _build_options(kwargs)
 
         # Update 'feed_options' from 'kwargs'

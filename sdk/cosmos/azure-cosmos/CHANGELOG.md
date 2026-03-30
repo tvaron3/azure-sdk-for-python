@@ -17,6 +17,9 @@
 * Added `get_response_headers()` and `get_last_response_headers()` methods to the `CosmosItemPaged` and `CosmosAsyncItemPaged` objects returned by `query_items()`, allowing access to response headers from query operations. See [PR 44593](https://github.com/Azure/azure-sdk-for-python/pull/44593)
 * Added InferenceRequestTimeout property for HttpTimeout Policy to Reranking API. See [45469](https://github.com/Azure/azure-sdk-for-python/pull/45469)
 * Added `full_text_score_scope` parameter to `query_items()` for controlling BM25 statistics scope in hybrid search queries. Supports "Local" and "Global" (default) scopes. See [45686](https://github.com/Azure/azure-sdk-for-python/pull/45686)
+* Added optional Fabric Mirror query routing via `use_mirror_serving` parameter in `query_items()`. When enabled with `mirror_config` on `CosmosClient`, queries can be routed to a Fabric warehouse. See [PR 45864](https://github.com/Azure/azure-sdk-for-python/pull/45864)
+
+#### Breaking Changes
 
 #### Bugs Fixed
 * Fixed bug where a compound session token (containing multiple partition tokens) was sent for single-partition feed range queries. See [PR 44484](https://github.com/Azure/azure-sdk-for-python/pull/44484)

@@ -763,6 +763,7 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
             session_token: Optional[str] = None,
             throughput_bucket: Optional[int] = None,
             availability_strategy: Optional[Union[bool, dict[str, Any]]] = None,
+            use_mirror_serving: Optional[bool] = None,
             **kwargs: Any
     ) -> CosmosItemPaged:
         """Return all results matching the given `query`.
@@ -865,6 +866,7 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
             session_token: Optional[str] = None,
             throughput_bucket: Optional[int] = None,
             availability_strategy: Optional[Union[bool, dict[str, Any]]] = None,
+            use_mirror_serving: Optional[bool] = None,
             **kwargs: Any
     ) -> CosmosItemPaged:
         """Return all results matching the given `query`.
@@ -1006,6 +1008,8 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         :paramtype response_hook: Callable[[Mapping[str, str], dict[str, Any]], None]
         :keyword str session_token: Token for use with Session consistency.
         :keyword int throughput_bucket: The desired throughput bucket for the client.
+        :keyword bool use_mirror_serving: If True, route this query to the Fabric mirror warehouse
+            instead of Cosmos DB. Requires mirror_config to be set on CosmosClient. Default is False.
         :returns: An Iterable of items (dicts).
         :rtype: CosmosItemPaged
 
@@ -1029,6 +1033,45 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         original_positional_arg_names = ["query", "parameters", "partition_key", "enable_cross_partition_query",
                                          "max_item_count", "enable_scan_in_query", "populate_query_metrics"]
         utils.add_args_to_kwargs(original_positional_arg_names, args, kwargs)
+
+        # Check if mirror serving is requested — early return before feed_options computation
+        use_mirror_serving = kwargs.pop("use_mirror_serving", False)
+
+        if use_mirror_serving:
+            query_str = kwargs.pop("query", None)
+            parameters = kwargs.pop("parameters", None)
+            response_hook = kwargs.pop("response_hook", None)
+
+            if not query_str:
+                raise ValueError("query is required when use_mirror_serving=True")
+
+            if not self.client_connection.mirror_config:
+                raise ValueError(
+                    "use_mirror_serving=True requires mirror_config to be provided "
+                    "in CosmosClient constructor."
+                )
+
+            mirror_config_with_table = dict(self.client_connection.mirror_config)
+            if "table_override" not in mirror_config_with_table and "fabric_table" not in mirror_config_with_table:
+                mirror_config_with_table["fabric_table"] = self.id
+
+            results, driver_client = execute_mirrored_query(
+                query=query_str,
+                parameters=parameters,
+                mirror_config=mirror_config_with_table,
+                cached_client=self.client_connection._mirror_driver_client,
+            )
+            # Cache driver client for connection reuse
+            self.client_connection._mirror_driver_client = driver_client
+
+            if response_hook and hasattr(response_hook, "clear"):
+                response_hook.clear()
+
+            return ItemPaged(
+                command=lambda *a, **kw: (results, {}),
+                page_iterator_class=None
+            )
+
         feed_options = build_options(kwargs)
 
         # Get container property and init client container caches
@@ -1071,42 +1114,7 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         # Set query with 'query' and 'parameters' from kwargs
         query_str = kwargs.pop("query", None)
         parameters = kwargs.pop("parameters", None)
-        
-        # NEW: Check if mirror serving is requested for this specific query
-        use_mirror_serving = kwargs.pop("use_mirror_serving", False)
-        
-        if use_mirror_serving:
-            # Validate mirror_config exists
-            if not self.client_connection._mirror_config:
-                raise ValueError(
-                    "use_mirror_serving=True requires mirror_config to be provided in CosmosClient constructor. "
-                    "Example: CosmosClient(url=..., credential=..., mirror_config={'server': '...', 'database': '...', 'credential': ...})"
-                )
 
-            # Build mirror config with container name as fabric_table
-            # (unless table_override is specified)
-            mirror_config_with_table = dict(self.client_connection._mirror_config)
-            if "table_override" not in mirror_config_with_table and "fabric_table" not in mirror_config_with_table:
-                mirror_config_with_table["fabric_table"] = self.id
-
-            # Delegate to mapper
-            try:
-                return execute_mirrored_query(
-                    query=query_str,
-                    parameters=parameters,
-                    mirror_config=mirror_config_with_table,
-                )
-            except MirrorServingNotAvailableError:
-                # Re-raise with context
-                raise
-            except Exception as exc:
-                # Wrap mapper exceptions with context
-                raise RuntimeError(
-                    f"Mirror serving query failed: {exc}. "
-                    "Set use_mirror_serving=False to query Cosmos DB directly."
-                ) from exc
-        
-        # EXISTING: Default Cosmos execution path
         if parameters is not None:
             query = {"query": query_str, "parameters": parameters}
         else:

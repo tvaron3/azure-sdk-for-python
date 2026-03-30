@@ -23,20 +23,12 @@
 
 from typing import Any, Dict, List, Optional
 
+from .exceptions import MirrorServingNotAvailableError
 
-class MirrorServingNotAvailableError(Exception):
-    """Raised when mirror serving is enabled but mapper package is not installed."""
-
-    def __init__(self):
-        super().__init__(
-            "Mirror serving is enabled but the azure-cosmos-fabric-mapper package "
-            "is not installed.\n\n"
-            "To enable this feature, install the mapper package:\n"
-            "  pip install azure-cosmos-fabric-mapper[sql]\n\n"
-            "Or disable mirror serving:\n"
-            "  - Set enable_mirror_serving=False in CosmosClient constructor\n"
-            "  - Or unset COSMOS_ENABLE_MIRROR_SERVING environment variable"
-        )
+_REQUIRED_CONFIG_KEYS = {
+    "server": ["server", "fabric_server"],
+    "database": ["database", "fabric_database"],
+}
 
 
 def _lazy_import_mapper():
@@ -55,56 +47,80 @@ def _lazy_import_mapper():
         raise MirrorServingNotAvailableError() from exc
 
 
+def _validate_mirror_config(mirror_config: Dict[str, Any]) -> None:
+    """Validate that required keys are present in mirror_config.
+
+    Raises:
+        ValueError: If required keys are missing
+    """
+    for logical_key, accepted_names in _REQUIRED_CONFIG_KEYS.items():
+        if not any(name in mirror_config for name in accepted_names):
+            raise ValueError(
+                f"mirror_config is missing required key '{logical_key}'. "
+                f"Provide one of: {accepted_names}. "
+                f"Required keys: server (or fabric_server), database (or fabric_database)."
+            )
+
+
+def _get_config_value(mirror_config: Dict[str, Any], *keys: str, default: Any = None) -> Any:
+    """Get the first matching key from mirror_config."""
+    for key in keys:
+        if key in mirror_config:
+            return mirror_config[key]
+    return default
+
+
 def execute_mirrored_query(
     query: str,
     parameters: Optional[List[Dict[str, Any]]],
     mirror_config: Dict[str, Any],
-) -> List[Dict[str, Any]]:
+    cached_client: Optional[Any] = None,
+) -> tuple:
     """Execute query against Fabric mirror using mapper package.
 
     Args:
         query: Cosmos SQL query text
         parameters: List of parameter dicts with 'name' and 'value' keys
-        mirror_config: Dict with fabric_server, fabric_database, fabric_table, fabric_schema
+        mirror_config: Dict with server, database, and optional credential, fabric_table, fabric_schema
+        cached_client: Optional cached driver client to reuse connections
 
     Returns:
-        List of Cosmos-like document dicts
+        Tuple of (results list, driver_client) — caller can cache the driver_client
 
     Raises:
         MirrorServingNotAvailableError: If mapper package not installed
-        UnsupportedCosmosQueryError: If query uses unsupported features
-        DriverError: If connection to Fabric fails
     """
+    _validate_mirror_config(mirror_config)
     contract = _lazy_import_mapper()
 
-    # Import mapper types
     from azure_cosmos_fabric_mapper import MirrorServingConfiguration
     from azure_cosmos_fabric_mapper.credentials import DefaultAzureSqlCredential
     from azure_cosmos_fabric_mapper.driver import get_driver_client
 
-    # Build configuration - normalize key names from SDK to mapper
-    # SDK uses: server, database, table_override (optional), credential
-    # Mapper expects: fabric_server, fabric_database, fabric_table, fabric_schema
+    server = _get_config_value(mirror_config, "server", "fabric_server")
+    database = _get_config_value(mirror_config, "database", "fabric_database")
+    table = _get_config_value(mirror_config, "table_override", "fabric_table", default="")
+    schema = _get_config_value(mirror_config, "fabric_schema", default=database)
+
     config = MirrorServingConfiguration(
-        fabric_server=mirror_config["server"],
-        fabric_database=mirror_config["database"],
-        fabric_table=mirror_config.get("table_override", mirror_config.get("fabric_table", "")),
-        fabric_schema=mirror_config.get("fabric_schema", mirror_config["database"]),  # Default schema = database name
+        fabric_server=server,
+        fabric_database=database,
+        fabric_table=table,
+        fabric_schema=schema,
     )
 
-    # Create request - pass parameters as-is since the mapper expects
-    # the same format as Cosmos SDK (list of dicts with 'name' and 'value')
     request = contract.MirroredQueryRequest(
         query=query,
         parameters=parameters,
     )
 
-    # Create credentials and auto-select driver
-    # (prefers mssql-python, falls back to pyodbc if unavailable)
-    credentials = DefaultAzureSqlCredential()
-    driver_client = get_driver_client(config=config, credentials=credentials)
+    # Use user-provided credential or fall back to default
+    user_credential = mirror_config.get("credential")
+    credentials = user_credential if user_credential is not None else DefaultAzureSqlCredential()
 
-    # Execute using credentials and auto-selected driver
+    # Reuse cached driver client if available, otherwise create new one
+    driver_client = cached_client or get_driver_client(config=config, credentials=credentials)
+
     results = contract.run_mirrored_query(
         request=request,
         config=config,
@@ -112,4 +128,4 @@ def execute_mirrored_query(
         driver=driver_client,
     )
 
-    return results
+    return results, driver_client
