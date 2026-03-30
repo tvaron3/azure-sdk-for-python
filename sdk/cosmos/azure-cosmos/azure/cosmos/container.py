@@ -1010,6 +1010,7 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         :keyword int throughput_bucket: The desired throughput bucket for the client.
         :keyword bool use_mirror_serving: If True, route this query to the Fabric mirror warehouse
             instead of Cosmos DB. Requires mirror_config to be set on CosmosClient. Default is False.
+            Fabric mirroring is only supported with CosmosDB Fabric native accounts.
         :returns: An Iterable of items (dicts).
         :rtype: CosmosItemPaged
 
@@ -1048,7 +1049,8 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
             if not self.client_connection.mirror_config:
                 raise ValueError(
                     "use_mirror_serving=True requires mirror_config to be provided "
-                    "in CosmosClient constructor."
+                    "in CosmosClient constructor. "
+                    "Note: Fabric mirroring is only supported with CosmosDB Fabric native accounts."
                 )
 
             mirror_config_with_table = dict(self.client_connection.mirror_config)

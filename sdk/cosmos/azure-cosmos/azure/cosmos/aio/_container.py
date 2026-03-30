@@ -923,15 +923,15 @@ class ContainerProxy:
             if not self.client_connection.mirror_config:
                 raise ValueError(
                     "use_mirror_serving=True requires mirror_config to be provided "
-                    "in CosmosClient constructor."
+                    "in CosmosClient constructor. "
+                    "Note: Fabric mirroring is only supported with CosmosDB Fabric native accounts."
                 )
 
             mirror_config_with_table = dict(self.client_connection.mirror_config)
             if "table_override" not in mirror_config_with_table and "fabric_table" not in mirror_config_with_table:
                 mirror_config_with_table["fabric_table"] = self.id
 
-            results, driver_client = await asyncio.to_thread(
-                execute_mirrored_query,
+            results, driver_client = execute_mirrored_query(
                 query=query_str,
                 parameters=parameters,
                 mirror_config=mirror_config_with_table,

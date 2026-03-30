@@ -218,8 +218,10 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
         Optional ThreadPoolExecutor for handling concurrent operations.
     :keyword dict[str, Any] mirror_config: Fabric mirror configuration for per-request query routing.
         When provided, individual queries can use ``use_mirror_serving=True`` to route through Fabric mirror.
+        Fabric mirroring is only supported with CosmosDB Fabric native accounts.
         Required keys: server (Fabric SQL endpoint), database (database name).
         Optional keys: credential, fabric_table, fabric_schema.
+        Requires azure-cosmos-fabric-mapper package: ``pip install azure-cosmos-fabric-mapper[sql]``
 
     .. admonition:: Example:
 

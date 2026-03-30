@@ -135,12 +135,16 @@ class CosmosClientTimeoutError(AzureError):
 
 
 class MirrorServingNotAvailableError(AzureError):
-    """Raised when mirror serving is requested but the mapper package is not installed."""
+    """Raised when mirror serving is requested but the mapper package is not installed.
+
+    Fabric mirroring is only supported with CosmosDB Fabric native accounts.
+    """
 
     def __init__(self):
         super().__init__(
             "Mirror serving is enabled but the azure-cosmos-fabric-mapper package "
             "is not installed.\n\n"
+            "Note: Fabric mirroring is only supported with CosmosDB Fabric native accounts.\n\n"
             "To enable this feature, install the mapper package:\n"
             "  pip install azure-cosmos-fabric-mapper[sql]\n\n"
             "Or disable mirror serving:\n"
