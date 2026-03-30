@@ -1,15 +1,20 @@
 # The MIT License (MIT)
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Replace with your Cosmos DB details
+import logging
+from azure.identity import DefaultAzureCredential
+
 PREFERRED_LOCATIONS = []
 CLIENT_EXCLUDED_LOCATIONS = []
 REQUEST_EXCLUDED_LOCATIONS = []
-COSMOS_PROXY_URI = "http://0.0.0.0:5100"
+COSMOS_PROXY_URI = "0.0.0.0"
 COSMOS_URI = ""
 COSMOS_KEY = ""
+COSMOS_CREDENTIAL = COSMOS_KEY if COSMOS_KEY else DefaultAzureCredential()
 COSMOS_CONTAINER = "scale_cont"
 COSMOS_DATABASE = "scale_db"
 USER_AGENT_PREFIX = ""
+LOG_LEVEL = logging.DEBUG
 APP_INSIGHTS_CONNECTION_STRING = ""
 CIRCUIT_BREAKER_ENABLED = False
 USE_MULTIPLE_WRITABLE_LOCATIONS = False
