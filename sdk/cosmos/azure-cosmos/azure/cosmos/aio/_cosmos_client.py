@@ -192,7 +192,7 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
         Default value is False (hedging disabled).
     :paramtype availability_strategy: Union[bool, dict[str, Any]]
     :keyword int availability_strategy_max_concurrency: The max concurrency for parallel requests.
-    :keyword dict[str, Any] mirror_config: Fabric mirror configuration for per-request query routing.
+    :keyword dict[str, Any] mirror_config: **provisional** Fabric mirror configuration for per-request query routing.
         When provided, individual queries can use ``use_mirror_serving=True`` to route through Fabric mirror.
         Fabric mirroring is only supported with CosmosDB Fabric native accounts.
         Required keys: server (Fabric SQL endpoint), database (database name).

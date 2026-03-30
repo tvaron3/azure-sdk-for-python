@@ -216,7 +216,7 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
     :paramtype availability_strategy: Union[bool, dict[str, Any]]
     :keyword ~concurrent.futures.thread.ThreadPoolExecutor availability_strategy_executor:
         Optional ThreadPoolExecutor for handling concurrent operations.
-    :keyword dict[str, Any] mirror_config: Fabric mirror configuration for per-request query routing.
+    :keyword dict[str, Any] mirror_config: **provisional** Fabric mirror configuration for per-request query routing.
         When provided, individual queries can use ``use_mirror_serving=True`` to route through Fabric mirror.
         Fabric mirroring is only supported with CosmosDB Fabric native accounts.
         Required keys: server (Fabric SQL endpoint), database (database name).

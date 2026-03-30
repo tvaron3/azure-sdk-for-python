@@ -888,6 +888,9 @@ class ContainerProxy:
             or a dict with keys ``threshold_ms`` and ``threshold_steps_ms`` to override the client's configured availability strategy.
             If not provided, uses the client's configured strategy.
         :returns: An Iterable of items (dicts).
+        :keyword bool use_mirror_serving: **provisional** If True, route this query to the Fabric mirror warehouse
+            instead of Cosmos DB. Requires mirror_config to be set on CosmosClient. Default is False.
+            Fabric mirroring is only supported with CosmosDB Fabric native accounts.
         :rtype: CosmosAsyncItemPaged
 
         .. admonition:: Example:

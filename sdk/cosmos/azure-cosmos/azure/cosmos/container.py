@@ -1008,7 +1008,7 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         :paramtype response_hook: Callable[[Mapping[str, str], dict[str, Any]], None]
         :keyword str session_token: Token for use with Session consistency.
         :keyword int throughput_bucket: The desired throughput bucket for the client.
-        :keyword bool use_mirror_serving: If True, route this query to the Fabric mirror warehouse
+        :keyword bool use_mirror_serving: **provisional** If True, route this query to the Fabric mirror warehouse
             instead of Cosmos DB. Requires mirror_config to be set on CosmosClient. Default is False.
             Fabric mirroring is only supported with CosmosDB Fabric native accounts.
         :returns: An Iterable of items (dicts).
