@@ -149,7 +149,7 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
         self.availability_strategy: Union[CrossRegionHedgingStrategy, None] =\
             validate_client_hedging_strategy(availability_strategy)
         self.availability_strategy_executor: Optional[ThreadPoolExecutor] = availability_strategy_executor
-        
+
         # Mirror serving configuration (for per-request routing)
         self._mirror_config = kwargs.pop('mirror_config', None)
         self._mirror_driver_client = None
@@ -283,7 +283,10 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
 
     @property
     def mirror_config(self):
-        """Fabric mirror configuration for per-request query routing."""
+        """Fabric mirror configuration for per-request query routing.
+
+        :rtype: Optional[dict[str, Any]]
+        """
         return self._mirror_config
 
     @property

@@ -276,7 +276,10 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
 
     @property
     def mirror_config(self):
-        """Fabric mirror configuration for per-request query routing."""
+        """Fabric mirror configuration for per-request query routing.
+
+        :rtype: Optional[dict[str, Any]]
+        """
         return self._mirror_config
 
     @property

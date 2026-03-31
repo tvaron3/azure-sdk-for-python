@@ -84,8 +84,6 @@ def mirror_query_example():
     for item in items:
         print(item)
 
-    client.close()
-
 
 if __name__ == "__main__":
     mirror_query_example()

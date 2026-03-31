@@ -22,7 +22,6 @@
 """Create, read, and delete databases in the Azure Cosmos DB SQL API service.
 """
 
-import os
 import warnings
 from typing import Any, Iterable, Mapping, Optional, Union, cast, Callable, overload, Literal, TYPE_CHECKING
 

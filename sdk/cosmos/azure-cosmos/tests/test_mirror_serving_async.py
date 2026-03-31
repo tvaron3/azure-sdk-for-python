@@ -59,7 +59,6 @@ class TestAsyncContainerMirrorServing(unittest.TestCase):
         import inspect
         source = inspect.getsource(_container)
         assert "execute_mirrored_query" in source
-        assert "MirrorServingNotAvailableError" in source
 
     def test_async_container_query_items_has_mirror_param(self):
         """Verify that async query_items accepts use_mirror_serving parameter."""
@@ -72,7 +71,7 @@ class TestAsyncContainerMirrorServing(unittest.TestCase):
         """Verify that async mirror path calls execute_mirrored_query."""
         from azure.cosmos.aio._container import ContainerProxy
         import inspect
-        source = inspect.getsource(ContainerProxy.query_items)
+        source = inspect.getsource(ContainerProxy._execute_mirror_query)
         assert "execute_mirrored_query" in source
 
     def test_async_mirror_config_not_set_raises(self):

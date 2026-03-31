@@ -41,7 +41,6 @@ from ._constants import _Constants as Constants, TimeoutScope
 from ._cosmos_client_connection import CosmosClientConnection
 from ._cosmos_responses import CosmosDict, CosmosList, CosmosItemPaged
 from ._mirror_integration import execute_mirrored_query
-from .exceptions import MirrorServingNotAvailableError
 from ._routing.routing_range import Range
 from ._session_token_helpers import get_latest_session_token
 from .exceptions import CosmosHttpResponseError
@@ -741,6 +740,48 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
         )
         return result
 
+    def _execute_mirror_query(self, kwargs: dict) -> CosmosItemPaged:
+        """Execute a query against the Fabric mirror warehouse.
+
+        :param dict kwargs: The keyword arguments from query_items.
+        :returns: A CosmosItemPaged with the mirror query results.
+        :rtype: CosmosItemPaged
+        """
+        query_str = kwargs.pop("query", None)
+        parameters = kwargs.pop("parameters", None)
+        response_hook = kwargs.pop("response_hook", None)
+
+        if not query_str:
+            raise ValueError("query is required when use_mirror_serving=True")
+
+        if not self.client_connection.mirror_config:
+            raise ValueError(
+                "use_mirror_serving=True requires mirror_config to be provided "
+                "in CosmosClient constructor. "
+                "Note: Fabric mirroring is only supported with CosmosDB Fabric native accounts."
+            )
+
+        mirror_config_with_table = dict(self.client_connection.mirror_config)
+        if "table_override" not in mirror_config_with_table and "fabric_table" not in mirror_config_with_table:
+            mirror_config_with_table["fabric_table"] = self.id
+
+        results, driver_client = execute_mirrored_query(
+            query=query_str,
+            parameters=parameters,
+            mirror_config=mirror_config_with_table,
+            cached_client=self.client_connection._mirror_driver_client,
+        )
+        # Cache driver client for connection reuse
+        self.client_connection._mirror_driver_client = driver_client
+
+        if response_hook and hasattr(response_hook, "clear"):
+            response_hook.clear()
+
+        return CosmosItemPaged(
+            command=lambda *a, **kw: (results, {}),
+            page_iterator_class=None
+        )
+
     @overload
     def query_items(
             self,
@@ -1037,42 +1078,8 @@ class ContainerProxy:  # pylint: disable=too-many-public-methods
 
         # Check if mirror serving is requested — early return before feed_options computation
         use_mirror_serving = kwargs.pop("use_mirror_serving", False)
-
         if use_mirror_serving:
-            query_str = kwargs.pop("query", None)
-            parameters = kwargs.pop("parameters", None)
-            response_hook = kwargs.pop("response_hook", None)
-
-            if not query_str:
-                raise ValueError("query is required when use_mirror_serving=True")
-
-            if not self.client_connection.mirror_config:
-                raise ValueError(
-                    "use_mirror_serving=True requires mirror_config to be provided "
-                    "in CosmosClient constructor. "
-                    "Note: Fabric mirroring is only supported with CosmosDB Fabric native accounts."
-                )
-
-            mirror_config_with_table = dict(self.client_connection.mirror_config)
-            if "table_override" not in mirror_config_with_table and "fabric_table" not in mirror_config_with_table:
-                mirror_config_with_table["fabric_table"] = self.id
-
-            results, driver_client = execute_mirrored_query(
-                query=query_str,
-                parameters=parameters,
-                mirror_config=mirror_config_with_table,
-                cached_client=self.client_connection._mirror_driver_client,
-            )
-            # Cache driver client for connection reuse
-            self.client_connection._mirror_driver_client = driver_client
-
-            if response_hook and hasattr(response_hook, "clear"):
-                response_hook.clear()
-
-            return ItemPaged(
-                command=lambda *a, **kw: (results, {}),
-                page_iterator_class=None
-            )
+            return self._execute_mirror_query(kwargs)
 
         feed_options = build_options(kwargs)
 

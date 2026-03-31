@@ -34,14 +34,12 @@ _REQUIRED_CONFIG_KEYS = {
 def _lazy_import_mapper():
     """Dynamically import mapper package only when needed.
 
-    Returns:
-        Module handle to azure_cosmos_fabric_mapper.sdk_hook.contract
-
-    Raises:
-        MirrorServingNotAvailableError: If package is not installed
+    :returns: Module handle to azure_cosmos_fabric_mapper.sdk_hook.contract.
+    :rtype: module
+    :raises ~azure.cosmos.exceptions.MirrorServingNotAvailableError: If package is not installed.
     """
     try:
-        from azure_cosmos_fabric_mapper.sdk_hook import contract
+        from azure_cosmos_fabric_mapper.sdk_hook import contract  # pylint: disable=import-error
         return contract
     except ImportError as exc:
         raise MirrorServingNotAvailableError() from exc
@@ -50,8 +48,8 @@ def _lazy_import_mapper():
 def _validate_mirror_config(mirror_config: Dict[str, Any]) -> None:
     """Validate that required keys are present in mirror_config.
 
-    Raises:
-        ValueError: If required keys are missing
+    :param dict mirror_config: The mirror configuration dictionary to validate.
+    :raises ValueError: If required keys are missing.
     """
     for logical_key, accepted_names in _REQUIRED_CONFIG_KEYS.items():
         if not any(name in mirror_config for name in accepted_names):
@@ -63,7 +61,14 @@ def _validate_mirror_config(mirror_config: Dict[str, Any]) -> None:
 
 
 def _get_config_value(mirror_config: Dict[str, Any], *keys: str, default: Any = None) -> Any:
-    """Get the first matching key from mirror_config."""
+    """Get the first matching key from mirror_config.
+
+    :param dict mirror_config: The mirror configuration dictionary.
+    :param str keys: One or more key names to look up in order.
+    :keyword default: Default value if no key is found.
+    :returns: The value of the first matching key, or default.
+    :rtype: Any
+    """
     for key in keys:
         if key in mirror_config:
             return mirror_config[key]
@@ -78,24 +83,21 @@ def execute_mirrored_query(
 ) -> tuple:
     """Execute query against Fabric mirror using mapper package.
 
-    Args:
-        query: Cosmos SQL query text
-        parameters: List of parameter dicts with 'name' and 'value' keys
-        mirror_config: Dict with server, database, and optional credential, fabric_table, fabric_schema
-        cached_client: Optional cached driver client to reuse connections
-
-    Returns:
-        Tuple of (results list, driver_client) — caller can cache the driver_client
-
-    Raises:
-        MirrorServingNotAvailableError: If mapper package not installed
+    :param str query: Cosmos SQL query text.
+    :param parameters: List of parameter dicts with 'name' and 'value' keys.
+    :paramtype parameters: Optional[list[dict[str, Any]]]
+    :param dict mirror_config: Dict with server, database, and optional credential, fabric_table, fabric_schema.
+    :param cached_client: Optional cached driver client to reuse connections.
+    :returns: Tuple of (results list, driver_client) — caller can cache the driver_client.
+    :rtype: tuple
+    :raises ~azure.cosmos.exceptions.MirrorServingNotAvailableError: If mapper package not installed.
     """
     _validate_mirror_config(mirror_config)
     contract = _lazy_import_mapper()
 
-    from azure_cosmos_fabric_mapper import MirrorServingConfiguration
-    from azure_cosmos_fabric_mapper.credentials import DefaultAzureSqlCredential
-    from azure_cosmos_fabric_mapper.driver import get_driver_client
+    from azure_cosmos_fabric_mapper import MirrorServingConfiguration  # pylint: disable=import-error
+    from azure_cosmos_fabric_mapper.credentials import DefaultAzureSqlCredential  # pylint: disable=import-error
+    from azure_cosmos_fabric_mapper.driver import get_driver_client  # pylint: disable=import-error
 
     server = _get_config_value(mirror_config, "server", "fabric_server")
     database = _get_config_value(mirror_config, "database", "fabric_database")
