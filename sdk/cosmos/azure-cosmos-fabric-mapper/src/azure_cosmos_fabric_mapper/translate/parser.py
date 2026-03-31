@@ -1,3 +1,8 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See LICENSE in the project root for
+# license information.
+# -------------------------------------------------------------------------
 """Cosmos SQL subset parser using lark."""
 
 from __future__ import annotations
@@ -18,20 +23,20 @@ select: "SELECT"i top_clause? PROJ_EXPR
 top_clause: "TOP"i INT
 
 // Projection expression - may include VALUE keyword
-PROJ_EXPR: /.+?(?=FROM)/is
+PROJ_EXPR: /.+?(?=\bFROM\b)/is
 
 from_clause: "FROM"i NAME
 where_clause: "WHERE"i WHERE_EXPR
-WHERE_EXPR: /.+?(?=GROUP|ORDER|OFFSET|$)/is
+WHERE_EXPR: /.+?(?=\bGROUP\b|\bORDER\b|\bOFFSET\b|$)/is
 
 group_clause: "GROUP"i "BY"i GROUP_EXPR
-GROUP_EXPR: /.+?(?=HAVING|ORDER|OFFSET|$)/is
+GROUP_EXPR: /.+?(?=\bHAVING\b|\bORDER\b|\bOFFSET\b|$)/is
 
 having_clause: "HAVING"i HAVING_EXPR
-HAVING_EXPR: /.+?(?=ORDER|OFFSET|$)/is
+HAVING_EXPR: /.+?(?=\bORDER\b|\bOFFSET\b|$)/is
 
 order_clause: "ORDER"i "BY"i ORDER_EXPR
-ORDER_EXPR: /.+?(?=OFFSET|$)/is
+ORDER_EXPR: /.+?(?=\bOFFSET\b|$)/is
 
 offset_clause: "OFFSET"i INT "LIMIT"i INT
 

@@ -1,7 +1,13 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See LICENSE in the project root for
+# license information.
+# -------------------------------------------------------------------------
 """mssql-python driver implementation (primary, pure Python)."""
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Sequence
 
@@ -31,7 +37,7 @@ def _import_mssql_python():
         ) from exc
 
 
-@dataclass(frozen=True)
+@dataclass
 class MssqlDriverClient:
     """SQL driver client using mssql-python for Fabric SQL connectivity.
     
@@ -46,6 +52,7 @@ class MssqlDriverClient:
     config: MirrorServingConfiguration
     credentials: CredentialSource
     _connection: Any = field(default=None, init=False, repr=False)
+    _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     def execute(self, sql: str, params: Sequence[Any]) -> ResultSet:
         """Execute a parameterized SQL query via mssql-python.
@@ -72,39 +79,46 @@ class MssqlDriverClient:
         )
 
         try:
-            conn = self._connection
-            if conn is not None:
+            with self._lock:
+                conn = self._connection
+                if conn is not None:
+                    try:
+                        cur = conn.cursor()
+                        try:
+                            cur.execute(sql, list(params))
+                            columns = [c[0] for c in cur.description] if cur.description else []
+                            rows = [tuple(r) for r in cur.fetchall()] if cur.description else []
+                        finally:
+                            cur.close()
+                        return ResultSet(columns=columns, rows=rows)
+                    except Exception:
+                        # Cached connection is stale; close and reconnect below
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+                        self._connection = None
+
+                # Get access token from credentials (same struct as pyodbc)
+                token_struct = self.credentials.get_sql_access_token_struct()
+                
+                # mssql-python supports attrs_before for token auth (same as pyodbc)
+                # SQL_COPT_SS_ACCESS_TOKEN = 1256
+                conn = mssql_python.connect(conn_str, attrs_before={1256: token_struct})
+                self._connection = conn
+                
+                cur = conn.cursor()
                 try:
-                    cur = conn.cursor()
                     cur.execute(sql, list(params))
+                    
+                    # Extract columns and rows (DB-API 2.0 compliant)
                     columns = [c[0] for c in cur.description] if cur.description else []
                     rows = [tuple(r) for r in cur.fetchall()] if cur.description else []
-                    return ResultSet(columns=columns, rows=rows)
-                except Exception:
-                    # Cached connection is stale; close and reconnect below
-                    try:
-                        conn.close()
-                    except Exception:
-                        pass
-                    object.__setattr__(self, '_connection', None)
-
-            # Get access token from credentials (same struct as pyodbc)
-            token_struct = self.credentials.get_sql_access_token_struct()
-            
-            # mssql-python supports attrs_before for token auth (same as pyodbc)
-            # SQL_COPT_SS_ACCESS_TOKEN = 1256
-            conn = mssql_python.connect(conn_str, attrs_before={1256: token_struct})
-            object.__setattr__(self, '_connection', conn)
-            
-            cur = conn.cursor()
-            cur.execute(sql, list(params))
-            
-            # Extract columns and rows (DB-API 2.0 compliant)
-            columns = [c[0] for c in cur.description] if cur.description else []
-            rows = [tuple(r) for r in cur.fetchall()] if cur.description else []
-            
-            return ResultSet(columns=columns, rows=rows)
+                finally:
+                    cur.close()
                 
+                return ResultSet(columns=columns, rows=rows)
+                    
         except MissingOptionalDependencyError:
             raise
         except Exception as exc:
@@ -117,4 +131,4 @@ class MssqlDriverClient:
                 self._connection.close()
             except Exception:
                 pass
-            object.__setattr__(self, '_connection', None)
+            self._connection = None

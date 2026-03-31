@@ -1,3 +1,8 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See LICENSE in the project root for
+# license information.
+# -------------------------------------------------------------------------
 """Configuration for Fabric mirror serving."""
 
 from __future__ import annotations
@@ -55,5 +60,6 @@ def default_table_sql(config: MirrorServingConfiguration) -> str:
         ConfigurationError: If configuration is invalid
     """
     config.validate()
-    schema = config.fabric_schema or "dbo"
-    return f"[{schema}].[{config.fabric_table}]"
+    schema = (config.fabric_schema or "dbo").replace(']', ']]')
+    table = config.fabric_table.replace(']', ']]')
+    return f"[{schema}].[{table}]"

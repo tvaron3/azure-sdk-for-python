@@ -1,3 +1,8 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See LICENSE in the project root for
+# license information.
+# -------------------------------------------------------------------------
 """SDK hook contract for Cosmos SDK integration."""
 
 from __future__ import annotations
@@ -41,7 +46,7 @@ def run_mirrored_query(
         request: Query request with Cosmos SQL and parameters
         config: Mirror serving configuration
         credentials: Optional credential source (defaults to DefaultAzureSqlCredential)
-        driver: Optional driver client (defaults to PyOdbcDriverClient)
+        driver: Optional driver client (defaults to auto-selected driver via get_driver_client() (prefers mssql-python))
         
     Returns:
         List of results in Cosmos format (dicts or scalars)

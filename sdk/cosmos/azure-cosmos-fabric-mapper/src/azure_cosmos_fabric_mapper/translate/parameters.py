@@ -1,3 +1,8 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See LICENSE in the project root for
+# license information.
+# -------------------------------------------------------------------------
 """Parameter mapping from Cosmos @ parameters to driver ? placeholders."""
 
 from __future__ import annotations
@@ -9,8 +14,8 @@ from typing import Any, Iterable
 from ..errors import UnsupportedCosmosQueryError
 
 
-# Pattern to match @paramName in SQL
-_PARAM_RE = re.compile(r"@([A-Za-z_][A-Za-z0-9_]*)")
+# Match quoted strings (skip) or @param (replace)
+_PARAM_OR_STRING_RE = re.compile(r"('[^']*')|@([A-Za-z_][A-Za-z0-9_]*)")
 
 
 @dataclass(frozen=True)
@@ -52,13 +57,15 @@ def parameterize(sql_with_at_params: str, parameters: Iterable[dict[str, Any]] |
     used_names: list[str] = []
 
     def repl(match: re.Match[str]) -> str:
-        """Replace @param with ? and track parameter name."""
-        name = match.group(1)
+        """Replace @param with ? but skip quoted strings."""
+        if match.group(1):  # Quoted string — keep as-is
+            return match.group(0)
+        name = match.group(2)
         used_names.append(name)
         return "?"
 
-    # Replace all @param with ?
-    sql = _PARAM_RE.sub(repl, sql_with_at_params)
+    # Match quoted strings (skip) or @param (replace)
+    sql = _PARAM_OR_STRING_RE.sub(repl, sql_with_at_params)
     
     # Build ordered parameter list
     try:

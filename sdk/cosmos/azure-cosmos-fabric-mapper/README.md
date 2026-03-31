@@ -1,6 +1,5 @@
 # Azure Cosmos → Fabric Mirror Mapper (Python)
 
-[![Python CI](https://github.com/TheovanKraay/azure-cosmos-fabric-mapper/actions/workflows/python-ci.yml/badge.svg)](https://github.com/TheovanKraay/azure-cosmos-fabric-mapper/actions/workflows/python-ci.yml)
 
 This package provides an **optional**, **separately installable** Python library that can translate a subset of Cosmos-style SQL queries into parameterized SQL suitable for querying a Fabric mirrored table (via ODBC), then map tabular results back to Cosmos-like result shapes.
 
@@ -153,7 +152,7 @@ See [API contract documentation](specs/001-fabric-mirror-mapper/contracts/python
 
 **Supported**:
 - Azure Cosmos DB Python SDK v4.x
-- Python 3.11+
+- Python 3.9+
 
 **Limitations**:
 - Requires Cosmos SDK patches for full integration (see [SDK Integration Guide](specs/001-fabric-mirror-mapper/contracts/sdk-integration-implementation.md))

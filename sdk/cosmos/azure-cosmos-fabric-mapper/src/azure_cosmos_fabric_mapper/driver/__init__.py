@@ -1,7 +1,13 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See LICENSE in the project root for
+# license information.
+# -------------------------------------------------------------------------
 """Driver package exports."""
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING
 
 from .base import DriverClient, ResultSet
@@ -38,14 +44,14 @@ def get_driver_client(
             from .mssql_driver import MssqlDriverClient
             return MssqlDriverClient(config=config, credentials=credentials)
         except ImportError:
-            pass  # Fall through to try other drivers
+            warnings.warn(f"Preferred driver '{prefer_driver}' not available, falling back to auto-detection")
     
     elif prefer_driver == "pyodbc":
         try:
             from .pyodbc_driver import PyOdbcDriverClient
             return PyOdbcDriverClient(config=config, credentials=credentials)
         except ImportError:
-            pass  # Fall through to try other drivers
+            warnings.warn(f"Preferred driver '{prefer_driver}' not available, falling back to auto-detection")
     
     # Default: try mssql-python first (recommended)
     try:

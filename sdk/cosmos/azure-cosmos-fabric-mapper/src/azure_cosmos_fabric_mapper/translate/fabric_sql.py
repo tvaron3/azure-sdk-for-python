@@ -1,3 +1,8 @@
+# -------------------------------------------------------------------------
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See LICENSE in the project root for
+# license information.
+# -------------------------------------------------------------------------
 """Fabric SQL emitter - transforms AST to Fabric SQL syntax."""
 
 from __future__ import annotations
@@ -52,6 +57,9 @@ def emit_fabric_sql(ast: QueryAst, config: MirrorServingConfiguration) -> str:
     if ast.offset is not None and ast.order_by is None:
         from ..errors import UnsupportedCosmosQueryError
         raise UnsupportedCosmosQueryError("OFFSET/LIMIT requires ORDER BY in Fabric SQL")
+    if ast.offset is not None and ast.limit is None:
+        from ..errors import UnsupportedCosmosQueryError
+        raise UnsupportedCosmosQueryError("OFFSET requires LIMIT in Fabric SQL")
     if ast.offset is not None and ast.limit is not None:
         sql += f" OFFSET {ast.offset} ROWS FETCH NEXT {ast.limit} ROWS ONLY"
     

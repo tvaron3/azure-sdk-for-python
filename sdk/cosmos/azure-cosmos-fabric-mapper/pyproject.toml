@@ -7,23 +7,29 @@ name = "azure-cosmos-fabric-mapper"
 version = "0.1.0"
 description = "Optional mapper that translates Azure Cosmos DB query shapes to Fabric mirror SQL and maps results back."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 license = { text = "MIT" }
-authors = [{ name = "Theo van Kraay", email = "thvankra@microsoft.com" }]
+authors = [
+  { name = "Microsoft Corporation", email = "azpysdkhelp@microsoft.com" },
+]
 keywords = ["azure", "cosmosdb", "fabric", "mirroring", "sql"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
-
 dependencies = [
   "lark>=1.1.9",
   "azure-identity>=1.16.0",
   "azure-core>=1.30.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/cosmos/azure-cosmos-fabric-mapper"
 
 [project.optional-dependencies]
 # Primary SQL driver (pure Python, no system dependencies on Windows)
