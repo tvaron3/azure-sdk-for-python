@@ -85,9 +85,10 @@ def execute_mirrored_query(
 
     :param str query: Cosmos SQL query text.
     :param parameters: List of parameter dicts with 'name' and 'value' keys.
-    :paramtype parameters: Optional[list[dict[str, Any]]]
+    :type parameters: Optional[list[dict[str, Any]]]
     :param dict mirror_config: Dict with server, database, and optional credential, fabric_table, fabric_schema.
     :param cached_client: Optional cached driver client to reuse connections.
+    :type cached_client: Optional[Any]
     :returns: Tuple of (results list, driver_client) — caller can cache the driver_client.
     :rtype: tuple
     :raises ~azure.cosmos.exceptions.MirrorServingNotAvailableError: If mapper package not installed.
