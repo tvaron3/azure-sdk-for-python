@@ -23,6 +23,8 @@ def emit_fabric_sql(ast: QueryAst, config: MirrorServingConfiguration) -> str:
     select_expr = ast.select_expr
 
     # Handle TOP + ORDER BY (no offset)
+    # Note: TOP and OFFSET/FETCH values are safe from injection because the parser
+    # validates they are integer literals before they reach this emitter.
     if ast.limit is not None and ast.offset is None:
         sql = f"SELECT TOP {ast.limit} {select_expr} FROM {table_sql} AS c"
         if ast.where_expr:
@@ -47,6 +49,9 @@ def emit_fabric_sql(ast: QueryAst, config: MirrorServingConfiguration) -> str:
         sql += f" ORDER BY {ast.order_by}"
     
     # OFFSET/LIMIT (requires ORDER BY in Fabric SQL)
+    if ast.offset is not None and ast.order_by is None:
+        from ..errors import UnsupportedCosmosQueryError
+        raise UnsupportedCosmosQueryError("OFFSET/LIMIT requires ORDER BY in Fabric SQL")
     if ast.offset is not None and ast.limit is not None:
         sql += f" OFFSET {ast.offset} ROWS FETCH NEXT {ast.limit} ROWS ONLY"
     

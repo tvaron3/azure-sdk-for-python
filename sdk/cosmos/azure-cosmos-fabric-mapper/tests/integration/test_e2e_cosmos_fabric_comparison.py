@@ -6,18 +6,9 @@ These tests use live Cosmos DB and Fabric mirror endpoints to validate that:
 3. Fabric is faster/cheaper for expensive queries (aggregations, ORDER BY)
 4. SELECT VALUE returns scalars, SELECT returns dicts
 
-Test Data:
-- Cosmos: tvk-my-cosmos-account.documents.azure.com:443
-  - Database: spark-load-tests
-  - Container: normal-bulk (1M records, partitionKey partitioned, 100K RUs)
-- Fabric: x6eps4xrq2xudenlfv6naeo3i4-go4uaawrmy3ulgkq7byxgxj3uy.msit-datawarehouse.fabric.microsoft.com
-  - Database: spark-load-tests
-  - Table: normal-bulk
-  - Schema: dbo
-
 Setup:
-- RBAC: Custom-CosmosDB-Metadata-Analytics-Reader role for user d84cc394-bc99-4d93-b782-78d464c5e7dd
 - Authentication: Azure AD via DefaultAzureCredential
+- Configure endpoints via environment variables (see module-level constants)
 """
 
 from __future__ import annotations
@@ -52,18 +43,18 @@ class FabricEndpoint:
     schema: str = "dbo"
 
 
-# Live test endpoints
+# Live test endpoints (configurable via environment variables)
 COSMOS = CosmosEndpoint(
-    account_url="https://tvk-my-cosmos-account.documents.azure.com:443/",
-    database="spark-load-tests",
-    container="normal-bulk"
+    account_url=os.getenv("COSMOS_ENDPOINT", "https://tvk-my-cosmos-account.documents.azure.com:443/"),
+    database=os.getenv("COSMOS_DATABASE", "spark-load-tests"),
+    container=os.getenv("COSMOS_CONTAINER", "normal-bulk"),
 )
 
 FABRIC = FabricEndpoint(
-    server="x6eps4xrq2xudenlfv6naeo3i4-go4uaawrmy3ulgkq7byxgxj3uy.msit-datawarehouse.fabric.microsoft.com",
-    database="spark-load-tests",
-    table="normal-bulk",
-    schema="dbo"
+    server=os.getenv("FABRIC_SERVER", "x6eps4xrq2xudenlfv6naeo3i4-go4uaawrmy3ulgkq7byxgxj3uy.msit-datawarehouse.fabric.microsoft.com"),
+    database=os.getenv("FABRIC_DATABASE", "spark-load-tests"),
+    table=os.getenv("FABRIC_TABLE", "normal-bulk"),
+    schema="dbo",
 )
 
 
@@ -103,15 +94,17 @@ def fabric_config():
 
 
 @pytest.fixture
-def fabric_driver():
+def fabric_driver(fabric_config):
     """Create Fabric driver client."""
     try:
-        from azure_cosmos_fabric_mapper.driver import PyOdbcDriverClient
+        from azure_cosmos_fabric_mapper.driver import get_driver_client
         from azure_cosmos_fabric_mapper.credentials import DefaultAzureSqlCredential
     except ImportError:
-        pytest.skip("pyodbc not installed (install with pip install azure-cosmos-fabric-mapper[odbc])")
+        pytest.skip("Driver dependencies not installed")
     
-    return PyOdbcDriverClient(), DefaultAzureSqlCredential()
+    credentials = DefaultAzureSqlCredential()
+    driver = get_driver_client(config=fabric_config, credentials=credentials)
+    return driver, credentials
 
 
 def query_cosmos(container, query: str, parameters: list[dict] | None = None) -> list[Any]:
@@ -137,7 +130,7 @@ def query_fabric(driver_client, credentials, config, query: str, parameters: dic
         request=request,
         config=config,
         credentials=credentials,
-        driver_client=driver_client
+        driver=driver_client
     )
 
 

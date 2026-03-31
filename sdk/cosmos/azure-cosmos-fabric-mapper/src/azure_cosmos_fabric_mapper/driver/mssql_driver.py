@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Sequence
 
 from ..config import MirrorServingConfiguration
@@ -45,6 +45,7 @@ class MssqlDriverClient:
     
     config: MirrorServingConfiguration
     credentials: CredentialSource
+    _connection: Any = field(default=None, init=False, repr=False)
 
     def execute(self, sql: str, params: Sequence[Any]) -> ResultSet:
         """Execute a parameterized SQL query via mssql-python.
@@ -71,26 +72,49 @@ class MssqlDriverClient:
         )
 
         try:
+            conn = self._connection
+            if conn is not None:
+                try:
+                    cur = conn.cursor()
+                    cur.execute(sql, list(params))
+                    columns = [c[0] for c in cur.description] if cur.description else []
+                    rows = [tuple(r) for r in cur.fetchall()] if cur.description else []
+                    return ResultSet(columns=columns, rows=rows)
+                except Exception:
+                    # Cached connection is stale; close and reconnect below
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                    object.__setattr__(self, '_connection', None)
+
             # Get access token from credentials (same struct as pyodbc)
             token_struct = self.credentials.get_sql_access_token_struct()
             
             # mssql-python supports attrs_before for token auth (same as pyodbc)
             # SQL_COPT_SS_ACCESS_TOKEN = 1256
             conn = mssql_python.connect(conn_str, attrs_before={1256: token_struct})
+            object.__setattr__(self, '_connection', conn)
             
-            try:
-                cur = conn.cursor()
-                cur.execute(sql, list(params))
-                
-                # Extract columns and rows (DB-API 2.0 compliant)
-                columns = [c[0] for c in cur.description] if cur.description else []
-                rows = [tuple(r) for r in cur.fetchall()] if cur.description else []
-                
-                return ResultSet(columns=columns, rows=rows)
-            finally:
-                conn.close()
+            cur = conn.cursor()
+            cur.execute(sql, list(params))
+            
+            # Extract columns and rows (DB-API 2.0 compliant)
+            columns = [c[0] for c in cur.description] if cur.description else []
+            rows = [tuple(r) for r in cur.fetchall()] if cur.description else []
+            
+            return ResultSet(columns=columns, rows=rows)
                 
         except MissingOptionalDependencyError:
             raise
         except Exception as exc:
             raise DriverError(f"Driver execution failed: {type(exc).__name__}: {exc}") from exc
+
+    def close(self) -> None:
+        """Close the cached connection, if any."""
+        if self._connection is not None:
+            try:
+                self._connection.close()
+            except Exception:
+                pass
+            object.__setattr__(self, '_connection', None)

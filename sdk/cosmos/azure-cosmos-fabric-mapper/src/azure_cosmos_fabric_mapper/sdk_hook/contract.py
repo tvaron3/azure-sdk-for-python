@@ -8,7 +8,7 @@ from typing import Any, Iterable
 from ..config import MirrorServingConfiguration
 from ..credentials import CredentialSource, DefaultAzureSqlCredential
 from ..driver.base import DriverClient
-from ..driver.pyodbc_driver import PyOdbcDriverClient
+from ..driver import get_driver_client
 from ..results.mapper import map_result_set
 from ..translate import translate
 
@@ -54,7 +54,7 @@ def run_mirrored_query(
     """
     config.validate()
     creds = credentials or DefaultAzureSqlCredential()
-    drv: DriverClient = driver or PyOdbcDriverClient(config=config, credentials=creds)
+    drv: DriverClient = driver or get_driver_client(config=config, credentials=creds)
 
     # Translate Cosmos query to Fabric SQL
     t = translate(request.query, request.parameters, config)

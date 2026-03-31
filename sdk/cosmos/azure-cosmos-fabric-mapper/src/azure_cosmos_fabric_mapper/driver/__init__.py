@@ -10,11 +10,6 @@ if TYPE_CHECKING:
     from ..config import MirrorServingConfiguration
     from ..credentials import CredentialSource
 
-# Lazy imports for optional drivers
-_mssql_driver_client = None
-_pyodbc_driver_client = None
-
-
 def get_driver_client(
     config: MirrorServingConfiguration,
     credentials: CredentialSource,
@@ -37,42 +32,32 @@ def get_driver_client(
     Raises:
         ImportError: If no supported driver is available
     """
-    global _mssql_driver_client, _pyodbc_driver_client
-    
     # Try preferred driver first if specified
     if prefer_driver == "mssql-python":
         try:
-            if _mssql_driver_client is None:
-                from .mssql_driver import MssqlDriverClient
-                _mssql_driver_client = MssqlDriverClient
-            return _mssql_driver_client(config=config, credentials=credentials)
+            from .mssql_driver import MssqlDriverClient
+            return MssqlDriverClient(config=config, credentials=credentials)
         except ImportError:
             pass  # Fall through to try other drivers
     
     elif prefer_driver == "pyodbc":
         try:
-            if _pyodbc_driver_client is None:
-                from .pyodbc_driver import PyOdbcDriverClient
-                _pyodbc_driver_client = PyOdbcDriverClient
-            return _pyodbc_driver_client(config=config, credentials=credentials)
+            from .pyodbc_driver import PyOdbcDriverClient
+            return PyOdbcDriverClient(config=config, credentials=credentials)
         except ImportError:
             pass  # Fall through to try other drivers
     
     # Default: try mssql-python first (recommended)
     try:
-        if _mssql_driver_client is None:
-            from .mssql_driver import MssqlDriverClient
-            _mssql_driver_client = MssqlDriverClient
-        return _mssql_driver_client(config=config, credentials=credentials)
+        from .mssql_driver import MssqlDriverClient
+        return MssqlDriverClient(config=config, credentials=credentials)
     except ImportError:
         pass
     
     # Fallback: try pyodbc
     try:
-        if _pyodbc_driver_client is None:
-            from .pyodbc_driver import PyOdbcDriverClient
-            _pyodbc_driver_client = PyOdbcDriverClient
-        return _pyodbc_driver_client(config=config, credentials=credentials)
+        from .pyodbc_driver import PyOdbcDriverClient
+        return PyOdbcDriverClient(config=config, credentials=credentials)
     except ImportError:
         pass
     

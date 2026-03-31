@@ -22,6 +22,7 @@ classifiers = [
 dependencies = [
   "lark>=1.1.9",
   "azure-identity>=1.16.0",
+  "azure-core>=1.30.0",
 ]
 
 [project.optional-dependencies]

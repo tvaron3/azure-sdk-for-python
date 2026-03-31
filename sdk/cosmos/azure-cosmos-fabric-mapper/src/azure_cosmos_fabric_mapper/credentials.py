@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import struct
-from dataclasses import dataclass
-from typing import Protocol
+from dataclasses import dataclass, field
+from typing import Any, Protocol
 
 from azure.core.credentials import TokenCredential
 from azure.identity import DefaultAzureCredential
@@ -35,17 +35,6 @@ class CredentialSource(Protocol):
             CredentialError: If credentials cannot be obtained
         """
 
-    def get_sql_access_token_bytes(self) -> bytes:
-        """Return the access token bytes (for drivers that need raw token).
-        
-        Returns:
-            Access token as bytes (UTF-16LE encoded with length prefix)
-            
-        Raises:
-            CredentialError: If credentials cannot be obtained
-        """
-
-
 @dataclass(frozen=True)
 class DefaultAzureSqlCredential:
     """Uses DefaultAzureCredential to get a database.windows.net access token.
@@ -57,6 +46,17 @@ class DefaultAzureSqlCredential:
     """
 
     credential: TokenCredential | None = None
+    _cached_credential: Any = field(default=None, init=False, repr=False)
+
+    def _get_credential(self) -> TokenCredential:
+        """Return the configured or cached DefaultAzureCredential."""
+        if self.credential is not None:
+            return self.credential
+        if self._cached_credential is not None:
+            return self._cached_credential
+        cred = DefaultAzureCredential()
+        object.__setattr__(self, '_cached_credential', cred)
+        return cred
 
     def get_sql_access_token_struct(self) -> bytes:
         """Get SQL access token using Azure Identity.
@@ -68,7 +68,7 @@ class DefaultAzureSqlCredential:
             CredentialError: If token acquisition fails
         """
         try:
-            cred = self.credential or DefaultAzureCredential()
+            cred = self._get_credential()
             token = cred.get_token("https://database.windows.net//.default").token
             token_bytes = bytes(token, "utf-16-le")
             return struct.pack("<I", len(token_bytes)) + token_bytes
@@ -85,64 +85,7 @@ class DefaultAzureSqlCredential:
             CredentialError: If token acquisition fails
         """
         try:
-            cred = self.credential or DefaultAzureCredential()
+            cred = self._get_credential()
             return cred.get_token("https://database.windows.net//.default").token
         except Exception as exc:
             raise CredentialError(f"Failed to acquire SQL access token: {exc}") from exc
-
-    def get_sql_access_token_bytes(self) -> bytes:
-        """Get SQL access token bytes for drivers.
-        
-        Returns:
-            Access token as bytes (UTF-16LE encoded with length prefix)
-            
-        Raises:
-            CredentialError: If token acquisition fails
-        """
-        # Same as get_sql_access_token_struct
-        return self.get_sql_access_token_struct()
-
-
-@dataclass(frozen=True)
-class SqlUsernamePasswordCredential:
-    """Username/password for SQL authentication (discouraged; provided for flexibility).
-    
-    Note: This does not produce an access token struct and should be used only
-    when explicitly required. Azure AD authentication is recommended instead.
-    
-    Attributes:
-        username: SQL username
-        password: SQL password (never logged)
-    """
-
-    username: str
-    password: str
-
-    def __post_init__(self) -> None:
-        """Validate that username and password are provided."""
-        if not self.username or not self.password:
-            raise CredentialError("username/password are required")
-
-    def get_sql_access_token_struct(self) -> bytes:
-        """Raise error - username/password does not provide token struct.
-        
-        Raises:
-            CredentialError: Always (this credential type doesn't support token auth)
-        """
-        raise CredentialError("Username/password credentials do not provide an access token struct")
-
-    def get_sql_access_token_string(self) -> str:
-        """Raise error - username/password does not provide token string.
-        
-        Raises:
-            CredentialError: Always (this credential type doesn't support token auth)
-        """
-        raise CredentialError("Username/password credentials do not provide an access token string")
-
-    def get_sql_access_token_bytes(self) -> bytes:
-        """Raise error - username/password does not provide token bytes.
-        
-        Raises:
-            CredentialError: Always (this credential type doesn't support token auth)
-        """
-        raise CredentialError("Username/password credentials do not provide an access token bytes")
