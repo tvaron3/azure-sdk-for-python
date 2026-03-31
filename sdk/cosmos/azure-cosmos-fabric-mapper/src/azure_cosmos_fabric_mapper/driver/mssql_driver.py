@@ -1,0 +1,96 @@
+"""mssql-python driver implementation (primary, pure Python)."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any, Sequence
+
+from ..config import MirrorServingConfiguration
+from ..credentials import CredentialSource
+from ..errors import DriverError, MissingOptionalDependencyError
+from .base import ResultSet
+
+
+def _import_mssql_python():
+    """Attempt to import mssql-python with helpful error message if missing.
+    
+    Returns:
+        mssql_python module
+        
+    Raises:
+        MissingOptionalDependencyError: If mssql-python is not installed
+    """
+    try:
+        import mssql_python  # type: ignore
+
+        return mssql_python
+    except ImportError as exc:  # pragma: no cover
+        raise MissingOptionalDependencyError(
+            "mssql-python is required for SQL connectivity. "
+            "Install with 'pip install azure-cosmos-fabric-mapper[sql]'."
+        ) from exc
+
+
+@dataclass(frozen=True)
+class MssqlDriverClient:
+    """SQL driver client using mssql-python for Fabric SQL connectivity.
+    
+    This is the primary driver implementation using Microsoft's pure Python
+    TDS driver. It requires no system-level ODBC driver installation on Windows.
+    
+    Attributes:
+        config: Mirror serving configuration
+        credentials: Credential source for SQL authentication
+    """
+    
+    config: MirrorServingConfiguration
+    credentials: CredentialSource
+
+    def execute(self, sql: str, params: Sequence[Any]) -> ResultSet:
+        """Execute a parameterized SQL query via mssql-python.
+        
+        Args:
+            sql: Parameterized SQL query (uses '?' placeholders)
+            params: Parameter values in order
+            
+        Returns:
+            ResultSet containing columns and rows
+            
+        Raises:
+            DriverError: If execution fails
+            MissingOptionalDependencyError: If mssql-python is not installed
+        """
+        mssql_python = _import_mssql_python()
+        self.config.validate()
+
+        # Build connection string (same format as ODBC for compatibility)
+        conn_str = (
+            f"Server=tcp:{self.config.fabric_server};"
+            f"Database={self.config.fabric_database};"
+            "Encrypt=yes;TrustServerCertificate=no;"
+        )
+
+        try:
+            # Get access token from credentials (same struct as pyodbc)
+            token_struct = self.credentials.get_sql_access_token_struct()
+            
+            # mssql-python supports attrs_before for token auth (same as pyodbc)
+            # SQL_COPT_SS_ACCESS_TOKEN = 1256
+            conn = mssql_python.connect(conn_str, attrs_before={1256: token_struct})
+            
+            try:
+                cur = conn.cursor()
+                cur.execute(sql, list(params))
+                
+                # Extract columns and rows (DB-API 2.0 compliant)
+                columns = [c[0] for c in cur.description] if cur.description else []
+                rows = [tuple(r) for r in cur.fetchall()] if cur.description else []
+                
+                return ResultSet(columns=columns, rows=rows)
+            finally:
+                conn.close()
+                
+        except MissingOptionalDependencyError:
+            raise
+        except Exception as exc:
+            raise DriverError(f"Driver execution failed: {type(exc).__name__}: {exc}") from exc
