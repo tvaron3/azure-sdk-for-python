@@ -21,14 +21,12 @@ class MirrorServingConfiguration:
         fabric_database: Database name in Fabric
         fabric_table: Table name (should match the mirrored Cosmos container)
         fabric_schema: Schema name (default 'dbo')
-        odbc_driver: ODBC driver name (default 'ODBC Driver 18 for SQL Server')
     """
 
     fabric_server: str
     fabric_database: str
     fabric_table: str
     fabric_schema: str = "dbo"
-    odbc_driver: str = "ODBC Driver 18 for SQL Server"
 
     def validate(self) -> None:
         """Validate that required configuration fields are present.

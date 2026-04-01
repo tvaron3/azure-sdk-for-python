@@ -75,7 +75,7 @@ class DefaultAzureSqlCredential:
         """
         try:
             cred = self._get_credential()
-            token = cred.get_token("https://database.windows.net//.default").token
+            token = cred.get_token("https://database.windows.net/.default").token
             token_bytes = bytes(token, "utf-16-le")
             return struct.pack("<I", len(token_bytes)) + token_bytes
         except Exception as exc:
@@ -92,6 +92,6 @@ class DefaultAzureSqlCredential:
         """
         try:
             cred = self._get_credential()
-            return cred.get_token("https://database.windows.net//.default").token
+            return cred.get_token("https://database.windows.net/.default").token
         except Exception as exc:
             raise CredentialError(f"Failed to acquire SQL access token: {exc}") from exc

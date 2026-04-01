@@ -13,6 +13,7 @@ from typing import Any, Sequence
 
 from ..config import MirrorServingConfiguration
 from ..credentials import CredentialSource
+from ..diagnostics import redact
 from ..errors import DriverError, MissingOptionalDependencyError
 from .base import ResultSet
 
@@ -41,13 +42,19 @@ def _import_pyodbc():
 class PyOdbcDriverClient:
     """ODBC driver client using pyodbc for Fabric SQL connectivity.
     
+    Note: This client serializes all queries through a single connection with a lock.
+    It is not designed for high-concurrency use. For concurrent workloads, create
+    separate driver client instances per thread.
+    
     Attributes:
         config: Mirror serving configuration
         credentials: Credential source for SQL authentication
+        odbc_driver: ODBC driver name (default 'ODBC Driver 18 for SQL Server')
     """
     
     config: MirrorServingConfiguration
     credentials: CredentialSource
+    odbc_driver: str = "ODBC Driver 18 for SQL Server"
     _connection: Any = field(default=None, init=False, repr=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
@@ -71,7 +78,7 @@ class PyOdbcDriverClient:
         pyodbc = _import_pyodbc()
 
         conn_str = (
-            f"Driver={{{self.config.odbc_driver}}};"
+            f"Driver={{{self.odbc_driver}}};"
             f"Server=tcp:{self.config.fabric_server};"
             f"Database={self.config.fabric_database};"
             "Encrypt=yes;TrustServerCertificate=no;"
@@ -90,10 +97,11 @@ class PyOdbcDriverClient:
                         finally:
                             cur.close()
                         return ResultSet(columns=columns, rows=rows)
-                    except (ConnectionError, OSError, BrokenPipeError):
-                        # Cached connection is stale; close and reconnect below
+                    except Exception as stale_exc:
+                        # Any error on a cached connection may indicate staleness.
+                        # Close and retry with a fresh connection.
                         try:
-                            conn.close()
+                            self._connection.close()
                         except Exception:
                             pass
                         self._connection = None
@@ -114,7 +122,7 @@ class PyOdbcDriverClient:
         except MissingOptionalDependencyError:
             raise
         except Exception as exc:
-            raise DriverError(f"Driver execution failed: {type(exc).__name__}: {exc}") from exc
+            raise DriverError(f"Driver execution failed: {type(exc).__name__}: {redact(str(exc))}") from exc
 
     def close(self) -> None:
         """Close the cached connection, if any."""
@@ -125,3 +133,10 @@ class PyOdbcDriverClient:
                 except Exception:
                     pass
                 self._connection = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False

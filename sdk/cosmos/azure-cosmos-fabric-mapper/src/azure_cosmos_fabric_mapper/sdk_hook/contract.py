@@ -55,7 +55,7 @@ def run_mirrored_query(
         ConfigurationError: If configuration is invalid
         UnsupportedCosmosQueryError: If query uses unsupported features
         DriverError: If query execution fails
-        MissingOptionalDependencyError: If pyodbc is missing
+        MissingOptionalDependencyError: If no SQL driver (mssql-python or pyodbc) is installed
     """
     config.validate()
     creds = credentials or DefaultAzureSqlCredential()

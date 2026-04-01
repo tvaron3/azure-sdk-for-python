@@ -117,13 +117,13 @@ def query_cosmos(container, query: str, parameters: list[dict] | None = None) ->
     return list(items)
 
 
-def query_fabric(driver_client, credentials, config, query: str, parameters: dict[str, Any] | None = None) -> list[Any]:
+def query_fabric(driver_client, credentials, config, query: str, parameters: list[dict[str, Any]] | None = None) -> list[Any]:
     """Execute a query against Fabric mirror using the mapper."""
     from azure_cosmos_fabric_mapper.sdk_hook import MirroredQueryRequest, run_mirrored_query
     
     request = MirroredQueryRequest(
         query=query,
-        parameters=parameters or {}
+        parameters=parameters
     )
     
     return run_mirrored_query(
@@ -166,10 +166,10 @@ class TestCosmosVsFabricComparison:
         
         # Pick a partitionKey value that exists
         query = "SELECT VALUE COUNT(1) FROM c WHERE c.partitionKey = @pk"
-        params = {"pk": "test-partition-1"}
+        params = [{"name": "@pk", "value": "test-partition-1"}]
         
         # Query Cosmos
-        cosmos_results = query_cosmos(cosmos_container, query, [params])
+        cosmos_results = query_cosmos(cosmos_container, query, params)
         
         # Query Fabric
         fabric_results = query_fabric(driver, creds, fabric_config, query, params)
@@ -186,10 +186,10 @@ class TestCosmosVsFabricComparison:
         driver, creds = fabric_driver
         
         query = "SELECT VALUE SUM(c.value) FROM c WHERE c.partitionKey = @pk"
-        params = {"pk": "test-partition-1"}
+        params = [{"name": "@pk", "value": "test-partition-1"}]
         
         # Query Cosmos
-        cosmos_results = query_cosmos(cosmos_container, query, [params])
+        cosmos_results = query_cosmos(cosmos_container, query, params)
         
         # Query Fabric
         fabric_results = query_fabric(driver, creds, fabric_config, query, params)
@@ -206,10 +206,10 @@ class TestCosmosVsFabricComparison:
         driver, creds = fabric_driver
         
         query = "SELECT c.id, c.partitionKey FROM c WHERE c.partitionKey = @pk OFFSET 0 LIMIT 10"
-        params = {"pk": "test-partition-1"}
+        params = [{"name": "@pk", "value": "test-partition-1"}]
         
         # Query Cosmos
-        cosmos_results = query_cosmos(cosmos_container, query, [params])
+        cosmos_results = query_cosmos(cosmos_container, query, params)
         
         # Query Fabric
         fabric_results = query_fabric(driver, creds, fabric_config, query, params)
@@ -235,7 +235,7 @@ class TestCosmosVsFabricComparison:
         driver, creds = fabric_driver
         
         query = "SELECT c.id, c.partitionKey FROM c WHERE c.partitionKey = @pk ORDER BY c.id OFFSET 0 LIMIT 10"
-        params = {"pk": "test-partition-1"}
+        params = [{"name": "@pk", "value": "test-partition-1"}]
         
         # Query Cosmos (expect failure or unsorted results)
         # Note: Cosmos Python SDK doesn't support ORDER BY today
@@ -254,10 +254,10 @@ class TestCosmosVsFabricComparison:
         driver, creds = fabric_driver
         
         query = "SELECT VALUE MAX(c.value) FROM c WHERE c.partitionKey = @pk"
-        params = {"pk": "test-partition-1"}
+        params = [{"name": "@pk", "value": "test-partition-1"}]
         
         # Query Cosmos
-        cosmos_results = query_cosmos(cosmos_container, query, [params])
+        cosmos_results = query_cosmos(cosmos_container, query, params)
         
         # Query Fabric
         fabric_results = query_fabric(driver, creds, fabric_config, query, params)
@@ -274,10 +274,10 @@ class TestCosmosVsFabricComparison:
         driver, creds = fabric_driver
         
         query = "SELECT VALUE AVG(c.value) FROM c WHERE c.partitionKey = @pk"
-        params = {"pk": "test-partition-1"}
+        params = [{"name": "@pk", "value": "test-partition-1"}]
         
         # Query Cosmos
-        cosmos_results = query_cosmos(cosmos_container, query, [params])
+        cosmos_results = query_cosmos(cosmos_container, query, params)
         
         # Query Fabric
         fabric_results = query_fabric(driver, creds, fabric_config, query, params)
@@ -294,10 +294,10 @@ class TestCosmosVsFabricComparison:
         driver, creds = fabric_driver
         
         query = "SELECT c.id FROM c WHERE c.partitionKey = @pk OFFSET 10 LIMIT 5"
-        params = {"pk": "test-partition-1"}
+        params = [{"name": "@pk", "value": "test-partition-1"}]
         
         # Query Cosmos
-        cosmos_results = query_cosmos(cosmos_container, query, [params])
+        cosmos_results = query_cosmos(cosmos_container, query, params)
         
         # Query Fabric
         fabric_results = query_fabric(driver, creds, fabric_config, query, params)

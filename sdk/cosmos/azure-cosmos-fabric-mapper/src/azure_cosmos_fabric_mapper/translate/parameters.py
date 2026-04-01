@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import re
+import warnings
 from dataclasses import dataclass
 from typing import Any, Iterable
 
@@ -72,5 +73,11 @@ def parameterize(sql_with_at_params: str, parameters: Iterable[dict[str, Any]] |
         ordered = [params_by_name[n] for n in used_names]
     except KeyError as exc:
         raise UnsupportedCosmosQueryError(f"Missing parameter value for @{exc.args[0]}") from exc
+    
+    # Warn about unused parameters
+    if params_by_name:
+        unused = set(params_by_name.keys()) - set(used_names)
+        if unused:
+            warnings.warn(f"Unused query parameters: {', '.join('@' + n for n in sorted(unused))}")
     
     return ParameterizedSql(sql=sql, params=ordered)

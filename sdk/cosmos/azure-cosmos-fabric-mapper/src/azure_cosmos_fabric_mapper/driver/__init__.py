@@ -38,40 +38,44 @@ def get_driver_client(
     Raises:
         ImportError: If no supported driver is available
     """
+    failed_drivers: set[str] = set()
+
     # Try preferred driver first if specified
     if prefer_driver == "mssql-python":
         try:
             from .mssql_driver import MssqlDriverClient
             return MssqlDriverClient(config=config, credentials=credentials)
         except ImportError:
-            warnings.warn(f"Preferred driver '{prefer_driver}' not available, falling back to auto-detection")
+            failed_drivers.add("mssql-python")
+            warnings.warn(f"Preferred driver 'mssql-python' not available, falling back to auto-detection")
     
     elif prefer_driver == "pyodbc":
         try:
             from .pyodbc_driver import PyOdbcDriverClient
             return PyOdbcDriverClient(config=config, credentials=credentials)
         except ImportError:
-            warnings.warn(f"Preferred driver '{prefer_driver}' not available, falling back to auto-detection")
+            failed_drivers.add("pyodbc")
+            warnings.warn(f"Preferred driver 'pyodbc' not available, falling back to auto-detection")
     
-    # Default: try mssql-python first (recommended)
-    try:
-        from .mssql_driver import MssqlDriverClient
-        return MssqlDriverClient(config=config, credentials=credentials)
-    except ImportError:
-        pass
+    # Auto-detection: try mssql-python first (unless already failed), then pyodbc
+    if "mssql-python" not in failed_drivers:
+        try:
+            from .mssql_driver import MssqlDriverClient
+            return MssqlDriverClient(config=config, credentials=credentials)
+        except ImportError:
+            pass
     
-    # Fallback: try pyodbc
-    try:
-        from .pyodbc_driver import PyOdbcDriverClient
-        return PyOdbcDriverClient(config=config, credentials=credentials)
-    except ImportError:
-        pass
+    if "pyodbc" not in failed_drivers:
+        try:
+            from .pyodbc_driver import PyOdbcDriverClient
+            return PyOdbcDriverClient(config=config, credentials=credentials)
+        except ImportError:
+            pass
     
-    # No driver available
     raise ImportError(
         "No SQL driver available. Install one of:\n"
-        "  - mssql-python (recommended): pip install azure-cosmos-fabric-mapper[sql]\n"
-        "  - pyodbc (legacy): pip install azure-cosmos-fabric-mapper[odbc]"
+        "  pip install azure-cosmos-fabric-mapper[sql]   # mssql-python (recommended)\n"
+        "  pip install azure-cosmos-fabric-mapper[odbc]  # pyodbc (legacy)"
     )
 
 

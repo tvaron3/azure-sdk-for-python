@@ -13,6 +13,7 @@ from typing import Any, Sequence
 
 from ..config import MirrorServingConfiguration
 from ..credentials import CredentialSource
+from ..diagnostics import redact
 from ..errors import DriverError, MissingOptionalDependencyError
 from .base import ResultSet
 
@@ -43,6 +44,10 @@ class MssqlDriverClient:
     
     This is the primary driver implementation using Microsoft's pure Python
     TDS driver. It requires no system-level ODBC driver installation on Windows.
+    
+    Note: This client serializes all queries through a single connection with a lock.
+    It is not designed for high-concurrency use. For concurrent workloads, create
+    separate driver client instances per thread.
     
     Attributes:
         config: Mirror serving configuration
@@ -93,10 +98,11 @@ class MssqlDriverClient:
                         finally:
                             cur.close()
                         return ResultSet(columns=columns, rows=rows)
-                    except (ConnectionError, OSError, BrokenPipeError):
-                        # Cached connection is stale; close and reconnect below
+                    except Exception as stale_exc:
+                        # Any error on a cached connection may indicate staleness.
+                        # Close and retry with a fresh connection.
                         try:
-                            conn.close()
+                            self._connection.close()
                         except Exception:
                             pass
                         self._connection = None
@@ -124,7 +130,7 @@ class MssqlDriverClient:
         except MissingOptionalDependencyError:
             raise
         except Exception as exc:
-            raise DriverError(f"Driver execution failed: {type(exc).__name__}: {exc}") from exc
+            raise DriverError(f"Driver execution failed: {type(exc).__name__}: {redact(str(exc))}") from exc
 
     def close(self) -> None:
         """Close the cached connection, if any."""
@@ -135,3 +141,10 @@ class MssqlDriverClient:
                 except Exception:
                     pass
                 self._connection = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        return False
