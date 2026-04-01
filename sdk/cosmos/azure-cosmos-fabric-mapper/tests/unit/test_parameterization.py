@@ -1,7 +1,7 @@
 """Parameterization tests - ensure secrets never end up in SQL strings."""
 
-from azure_cosmos_fabric_mapper.config import MirrorServingConfiguration
-from azure_cosmos_fabric_mapper.translate import translate
+from azure.cosmos.fabric_mapper.config import MirrorServingConfiguration
+from azure.cosmos.fabric_mapper.translate import translate
 
 
 def test_parameter_values_never_interpolated_into_sql():

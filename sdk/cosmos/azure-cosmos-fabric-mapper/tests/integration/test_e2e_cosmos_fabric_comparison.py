@@ -83,7 +83,7 @@ def cosmos_container(cosmos_client):
 @pytest.fixture
 def fabric_config():
     """Get Fabric mirror configuration for testing."""
-    from azure_cosmos_fabric_mapper import MirrorServingConfiguration
+    from azure.cosmos.fabric_mapper import MirrorServingConfiguration
     
     return MirrorServingConfiguration(
         fabric_server=FABRIC.server,
@@ -97,8 +97,8 @@ def fabric_config():
 def fabric_driver(fabric_config):
     """Create Fabric driver client."""
     try:
-        from azure_cosmos_fabric_mapper.driver import get_driver_client
-        from azure_cosmos_fabric_mapper.credentials import DefaultAzureSqlCredential
+        from azure.cosmos.fabric_mapper.driver import get_driver_client
+        from azure.cosmos.fabric_mapper.credentials import DefaultAzureSqlCredential
     except ImportError:
         pytest.skip("Driver dependencies not installed")
     
@@ -119,7 +119,7 @@ def query_cosmos(container, query: str, parameters: list[dict] | None = None) ->
 
 def query_fabric(driver_client, credentials, config, query: str, parameters: list[dict[str, Any]] | None = None) -> list[Any]:
     """Execute a query against Fabric mirror using the mapper."""
-    from azure_cosmos_fabric_mapper.sdk_hook import MirroredQueryRequest, run_mirrored_query
+    from azure.cosmos.fabric_mapper.sdk_hook import MirroredQueryRequest, run_mirrored_query
     
     request = MirroredQueryRequest(
         query=query,

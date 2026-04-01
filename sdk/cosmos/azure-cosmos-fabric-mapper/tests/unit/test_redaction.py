@@ -1,6 +1,6 @@
 """Redaction tests - ensure secrets never appear in diagnostic output."""
 
-from azure_cosmos_fabric_mapper.diagnostics import DiagnosticPayload, redact
+from azure.cosmos.fabric_mapper.diagnostics import DiagnosticPayload, redact
 
 
 def test_redacts_password_like_fields():

@@ -15,10 +15,10 @@ from typing import Any
 import pytest
 from azure.identity import DefaultAzureCredential
 
-from azure_cosmos_fabric_mapper import MirrorServingConfiguration
-from azure_cosmos_fabric_mapper.credentials import DefaultAzureSqlCredential
-from azure_cosmos_fabric_mapper.driver import get_driver_client
-from azure_cosmos_fabric_mapper.translate import translate
+from azure.cosmos.fabric_mapper import MirrorServingConfiguration
+from azure.cosmos.fabric_mapper.credentials import DefaultAzureSqlCredential
+from azure.cosmos.fabric_mapper.driver import get_driver_client
+from azure.cosmos.fabric_mapper.translate import translate
 
 
 # Test configuration from environment or defaults

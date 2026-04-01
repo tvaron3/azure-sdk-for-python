@@ -1,6 +1,6 @@
 """Tests for parser handling of SQL keywords in column names."""
 import pytest
-from azure_cosmos_fabric_mapper.translate.parser import parse_cosmos_sql
+from azure.cosmos.fabric_mapper.translate.parser import parse_cosmos_sql
 
 class TestParserKeywordColumnNames:
     """Verify parser handles column names containing SQL keywords."""

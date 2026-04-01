@@ -21,7 +21,9 @@ from .errors import (
 )
 from .sdk_hook import MirroredQueryRequest, run_mirrored_query
 
-__version__ = "0.1.0"
+from ._version import VERSION
+
+__version__ = VERSION
 
 __all__ = [
     "ConfigurationError",

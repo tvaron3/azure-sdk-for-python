@@ -1,7 +1,7 @@
 """Result mapping tests - verify tabular rows map to Cosmos-like documents."""
 
-from azure_cosmos_fabric_mapper.driver.base import ResultSet
-from azure_cosmos_fabric_mapper.results import map_result_set
+from azure.cosmos.fabric_mapper.driver.base import ResultSet
+from azure.cosmos.fabric_mapper.results import map_result_set
 
 
 def test_result_mapping_to_dicts():

@@ -3,8 +3,8 @@
 import json
 from pathlib import Path
 
-from azure_cosmos_fabric_mapper.config import MirrorServingConfiguration
-from azure_cosmos_fabric_mapper.translate import translate
+from azure.cosmos.fabric_mapper.config import MirrorServingConfiguration
+from azure.cosmos.fabric_mapper.translate import translate
 
 
 def test_golden_translation_fixtures_match():
