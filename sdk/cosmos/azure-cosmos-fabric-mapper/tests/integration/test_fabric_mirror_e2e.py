@@ -24,14 +24,14 @@ from azure_cosmos_fabric_mapper.translate import translate
 # Test configuration from environment or defaults
 COSMOS_ENDPOINT = os.getenv(
     "COSMOS_ENDPOINT",
-    "https://tvk-my-cosmos-account.documents.azure.com:443/"
+    "https://your-account.documents.azure.com:443/"
 )
 COSMOS_DATABASE = os.getenv("COSMOS_DATABASE", "spark-load-tests")
 COSMOS_CONTAINER = os.getenv("COSMOS_CONTAINER", "normal-bulk")
 
 FABRIC_SERVER = os.getenv(
     "FABRIC_SERVER",
-    "x6eps4xrq2xudenlfv6naeo3i4-go4uaawrmy3ulgkq7byxgxj3uy.msit-datawarehouse.fabric.microsoft.com"
+    "your-endpoint.datawarehouse.fabric.microsoft.com"
 )
 FABRIC_DATABASE = os.getenv("FABRIC_DATABASE", "spark-load-tests")
 FABRIC_TABLE = os.getenv("FABRIC_TABLE", "normal-bulk")

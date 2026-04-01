@@ -8,11 +8,11 @@
 from __future__ import annotations
 
 import struct
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from azure.core.credentials import TokenCredential
-from azure.identity import DefaultAzureCredential
 
 from .errors import CredentialError
 
@@ -40,7 +40,7 @@ class CredentialSource(Protocol):
             CredentialError: If credentials cannot be obtained
         """
 
-@dataclass(frozen=True)
+@dataclass
 class DefaultAzureSqlCredential:
     """Uses DefaultAzureCredential to get a database.windows.net access token.
     
@@ -52,16 +52,17 @@ class DefaultAzureSqlCredential:
 
     credential: TokenCredential | None = None
     _cached_credential: Any = field(default=None, init=False, repr=False)
+    _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
     def _get_credential(self) -> TokenCredential:
-        """Return the configured or cached DefaultAzureCredential."""
+        """Get or create cached credential with thread safety."""
         if self.credential is not None:
             return self.credential
-        if self._cached_credential is not None:
+        with self._lock:
+            if self._cached_credential is None:
+                from azure.identity import DefaultAzureCredential
+                self._cached_credential = DefaultAzureCredential()
             return self._cached_credential
-        cred = DefaultAzureCredential()
-        object.__setattr__(self, '_cached_credential', cred)
-        return cred
 
     def get_sql_access_token_struct(self) -> bytes:
         """Get SQL access token using Azure Identity.

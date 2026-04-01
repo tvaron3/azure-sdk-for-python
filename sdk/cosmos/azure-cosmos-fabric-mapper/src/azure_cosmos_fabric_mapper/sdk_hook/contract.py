@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable
+from typing import Any, Sequence
 
 from ..config import MirrorServingConfiguration
 from ..credentials import CredentialSource, DefaultAzureSqlCredential
@@ -28,7 +28,7 @@ class MirroredQueryRequest:
     """
     
     query: str
-    parameters: Iterable[dict[str, Any]] | None = None
+    parameters: Sequence[dict[str, Any]] | None = None
 
 
 def run_mirrored_query(
@@ -59,13 +59,19 @@ def run_mirrored_query(
     """
     config.validate()
     creds = credentials or DefaultAzureSqlCredential()
+    auto_created_driver = driver is None
     drv: DriverClient = driver or get_driver_client(config=config, credentials=creds)
 
-    # Translate Cosmos query to Fabric SQL
-    t = translate(request.query, request.parameters, config)
-    
-    # Execute via driver
-    rs = drv.execute(t.sql, t.params)
-    
-    # Map results back to Cosmos format
-    return map_result_set(rs, select_value=t.select_value)
+    try:
+        # Translate Cosmos query to Fabric SQL
+        t = translate(request.query, request.parameters, config)
+
+        # Execute via driver
+        rs = drv.execute(t.sql, t.params)
+
+        # Map results back to Cosmos format
+        mapped = map_result_set(rs, select_value=t.select_value)
+        return mapped
+    finally:
+        if auto_created_driver:
+            drv.close()

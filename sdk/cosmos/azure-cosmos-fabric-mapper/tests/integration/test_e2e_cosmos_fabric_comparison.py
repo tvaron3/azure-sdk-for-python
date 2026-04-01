@@ -45,13 +45,13 @@ class FabricEndpoint:
 
 # Live test endpoints (configurable via environment variables)
 COSMOS = CosmosEndpoint(
-    account_url=os.getenv("COSMOS_ENDPOINT", "https://tvk-my-cosmos-account.documents.azure.com:443/"),
+    account_url=os.getenv("COSMOS_ENDPOINT", "https://your-account.documents.azure.com:443/"),
     database=os.getenv("COSMOS_DATABASE", "spark-load-tests"),
     container=os.getenv("COSMOS_CONTAINER", "normal-bulk"),
 )
 
 FABRIC = FabricEndpoint(
-    server=os.getenv("FABRIC_SERVER", "x6eps4xrq2xudenlfv6naeo3i4-go4uaawrmy3ulgkq7byxgxj3uy.msit-datawarehouse.fabric.microsoft.com"),
+    server=os.getenv("FABRIC_SERVER", "your-endpoint.datawarehouse.fabric.microsoft.com"),
     database=os.getenv("FABRIC_DATABASE", "spark-load-tests"),
     table=os.getenv("FABRIC_TABLE", "normal-bulk"),
     schema="dbo",

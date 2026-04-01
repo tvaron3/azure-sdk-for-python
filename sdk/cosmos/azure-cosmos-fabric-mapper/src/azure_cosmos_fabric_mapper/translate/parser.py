@@ -7,10 +7,34 @@
 
 from __future__ import annotations
 
+import re as _re
+
 from lark import Lark, Transformer
 
 from ..errors import UnsupportedCosmosQueryError
 from .ast import QueryAst
+
+_STRING_LITERAL_RE = _re.compile(r"'[^']*'")
+_PLACEHOLDER_PREFIX = "\x00STR"
+
+
+def _mask_string_literals(query: str) -> tuple[str, list[str]]:
+    """Replace single-quoted strings with placeholders to prevent keyword collisions."""
+    literals: list[str] = []
+
+    def _replace(m: _re.Match) -> str:
+        literals.append(m.group(0))
+        return f"{_PLACEHOLDER_PREFIX}{len(literals) - 1}\x00"
+
+    masked = _STRING_LITERAL_RE.sub(_replace, query)
+    return masked, literals
+
+
+def _unmask_string_literals(text: str, literals: list[str]) -> str:
+    """Restore masked string literals."""
+    for i, lit in enumerate(literals):
+        text = text.replace(f"{_PLACEHOLDER_PREFIX}{i}\x00", lit)
+    return text
 
 
 # Grammar for the supported Cosmos SQL subset
@@ -165,8 +189,19 @@ def parse_cosmos_sql(query_text: str) -> QueryAst:
         UnsupportedCosmosQueryError: If query uses unsupported features or has syntax errors
     """
     try:
-        tree = _PARSER.parse(query_text.strip())
-        return _TRANSFORM.transform(tree)
+        masked, literals = _mask_string_literals(query_text.strip())
+        tree = _PARSER.parse(masked)
+        ast = _TRANSFORM.transform(tree)
+        return QueryAst(
+            select_value=ast.select_value,
+            select_expr=_unmask_string_literals(ast.select_expr, literals),
+            where_expr=_unmask_string_literals(ast.where_expr, literals) if ast.where_expr else None,
+            group_by=_unmask_string_literals(ast.group_by, literals) if ast.group_by else None,
+            having_expr=_unmask_string_literals(ast.having_expr, literals) if ast.having_expr else None,
+            order_by=_unmask_string_literals(ast.order_by, literals) if ast.order_by else None,
+            offset=ast.offset,
+            limit=ast.limit,
+        )
     except UnsupportedCosmosQueryError:
         raise
     except Exception as exc:

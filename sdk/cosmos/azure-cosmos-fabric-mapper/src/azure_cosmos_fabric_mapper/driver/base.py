@@ -45,3 +45,7 @@ class DriverClient(Protocol):
             DriverError: If execution fails
         """
         ...  # pragma: no cover
+
+    def close(self) -> None:
+        """Close the driver client and release resources."""
+        ...  # pragma: no cover

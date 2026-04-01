@@ -51,6 +51,9 @@ class PyOdbcDriverClient:
     _connection: Any = field(default=None, init=False, repr=False)
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
 
+    def __post_init__(self):
+        self.config.validate()
+
     def execute(self, sql: str, params: Sequence[Any]) -> ResultSet:
         """Execute a parameterized SQL query via pyodbc.
         
@@ -66,7 +69,6 @@ class PyOdbcDriverClient:
             MissingOptionalDependencyError: If pyodbc is not installed
         """
         pyodbc = _import_pyodbc()
-        self.config.validate()
 
         conn_str = (
             f"Driver={{{self.config.odbc_driver}}};"
@@ -88,7 +90,7 @@ class PyOdbcDriverClient:
                         finally:
                             cur.close()
                         return ResultSet(columns=columns, rows=rows)
-                    except Exception:
+                    except (ConnectionError, OSError, BrokenPipeError):
                         # Cached connection is stale; close and reconnect below
                         try:
                             conn.close()
@@ -116,9 +118,10 @@ class PyOdbcDriverClient:
 
     def close(self) -> None:
         """Close the cached connection, if any."""
-        if self._connection is not None:
-            try:
-                self._connection.close()
-            except Exception:
-                pass
-            self._connection = None
+        with self._lock:
+            if self._connection is not None:
+                try:
+                    self._connection.close()
+                except Exception:
+                    pass
+                self._connection = None

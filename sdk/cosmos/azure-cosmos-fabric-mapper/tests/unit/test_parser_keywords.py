@@ -28,3 +28,24 @@ class TestParserKeywordColumnNames:
     def test_order_by_with_keyword_column(self):
         ast = parse_cosmos_sql("SELECT c.order_date FROM c ORDER BY c.order_date")
         assert "order_date" in ast.order_by
+
+
+class TestParserStringLiteralKeywords:
+    """Verify parser handles SQL keywords inside single-quoted string literals."""
+
+    def test_string_literal_with_order_keyword(self):
+        ast = parse_cosmos_sql("SELECT * FROM c WHERE c.name = 'ORDER processing'")
+        assert "'ORDER processing'" in ast.where_expr
+
+    def test_string_literal_with_group_keyword(self):
+        ast = parse_cosmos_sql("SELECT * FROM c WHERE c.status = 'GROUP therapy'")
+        assert "'GROUP therapy'" in ast.where_expr
+
+    def test_string_literal_with_offset_keyword(self):
+        ast = parse_cosmos_sql("SELECT * FROM c WHERE c.type = 'OFFSET value'")
+        assert "'OFFSET value'" in ast.where_expr
+
+    def test_multiple_string_literals(self):
+        ast = parse_cosmos_sql("SELECT * FROM c WHERE c.a = 'ORDER' AND c.b = 'GROUP'")
+        assert "'ORDER'" in ast.where_expr
+        assert "'GROUP'" in ast.where_expr

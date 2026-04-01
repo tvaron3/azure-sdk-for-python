@@ -336,6 +336,7 @@ See [specs/001-fabric-mirror-mapper/](specs/001-fabric-mirror-mapper/) for desig
 ## Known Limitations
 
 - **Regex-based parser keyword collisions**: The parser may mis-parse column names that contain SQL keywords as substrings (e.g., `c.order_date`, `c.group_name`, `c.from_source`).
+- **String literals containing SQL keywords**: String literals containing SQL keywords as whole words (e.g., `'ORDER processing'`, `'GROUP therapy'`) may cause parse failures. Use parameterized queries (`@param`) instead of inline string values to avoid this.
 - **Supported SQL subset only**: Only a subset of Cosmos SQL is supported: `SELECT`, `FROM`, `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`, `OFFSET`/`LIMIT`, and `TOP`.
 - **Unsupported features**: Nested subqueries, JOINs (array/object traversal), and user-defined functions (UDFs) are not supported and will raise `UnsupportedCosmosQueryError`.
 
