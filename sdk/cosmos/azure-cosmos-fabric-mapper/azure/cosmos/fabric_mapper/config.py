@@ -17,7 +17,7 @@ class MirrorServingConfiguration:
     """Configuration for serving Cosmos-like queries from a Fabric mirrored table.
     
     Attributes:
-        fabric_server: Fabric Warehouse endpoint (e.g., 'endpoint.msit-datawarehouse.fabric.microsoft.com')
+        fabric_server: Fabric Warehouse endpoint (e.g., ``endpoint.datawarehouse.fabric.microsoft.com``)
         fabric_database: Database name in Fabric
         fabric_table: Table name (should match the mirrored Cosmos container)
         fabric_schema: Schema name (default 'dbo')

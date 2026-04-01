@@ -48,6 +48,9 @@ readme = {file = ["README.md", "CHANGELOG.md"], content-type = "text/markdown"}
 [tool.setuptools.packages.find]
 exclude = ["tests", "tests.*", "samples", "specs", "specs.*"]
 
+[tool.setuptools.package-data]
+"azure.cosmos.fabric_mapper" = ["py.typed"]
+
 [tool.azure-sdk-build]
 mypy = false
 pyright = false
