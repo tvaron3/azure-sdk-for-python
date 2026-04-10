@@ -6,21 +6,19 @@ import os
 
 from azure.identity import DefaultAzureCredential
 
-PREFERRED_LOCATIONS = (
-    os.environ.get("COSMOS_PREFERRED_LOCATIONS", "").split(",")
-    if os.environ.get("COSMOS_PREFERRED_LOCATIONS")
-    else []
-)
-CLIENT_EXCLUDED_LOCATIONS = (
-    os.environ.get("COSMOS_CLIENT_EXCLUDED_LOCATIONS", "").split(",")
-    if os.environ.get("COSMOS_CLIENT_EXCLUDED_LOCATIONS")
-    else []
-)
-REQUEST_EXCLUDED_LOCATIONS = (
-    os.environ.get("COSMOS_REQUEST_EXCLUDED_LOCATIONS", "").split(",")
-    if os.environ.get("COSMOS_REQUEST_EXCLUDED_LOCATIONS")
-    else []
-)
+
+def _parse_region_list(env_var_name):
+    value = os.environ.get(env_var_name, "")
+    return (
+        [region.strip() for region in value.split(",") if region.strip()]
+        if value
+        else []
+    )
+
+
+PREFERRED_LOCATIONS = _parse_region_list("COSMOS_PREFERRED_LOCATIONS")
+CLIENT_EXCLUDED_LOCATIONS = _parse_region_list("COSMOS_CLIENT_EXCLUDED_LOCATIONS")
+REQUEST_EXCLUDED_LOCATIONS = _parse_region_list("COSMOS_REQUEST_EXCLUDED_LOCATIONS")
 COSMOS_PROXY_URI = os.environ.get("COSMOS_PROXY_URI", "0.0.0.0")
 COSMOS_URI = os.environ.get("COSMOS_URI", "")
 COSMOS_KEY = os.environ.get("COSMOS_KEY", "")

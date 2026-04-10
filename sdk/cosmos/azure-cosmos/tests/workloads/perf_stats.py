@@ -14,6 +14,10 @@ except ImportError:
     )
 
 
+_MIN_VALUE_US = 1
+_MAX_VALUE_US = 60_000_000
+
+
 class Stats:
     """Thread-safe per-operation latency and error tracking using HdrHistogram.
 
@@ -33,10 +37,13 @@ class Stats:
         """Record a successful operation with its duration in milliseconds."""
         with self._lock:
             if operation not in self._histograms:
-                self._histograms[operation] = HdrHistogram(1, 60_000_000, 3)
+                self._histograms[operation] = HdrHistogram(
+                    _MIN_VALUE_US, _MAX_VALUE_US, 3
+                )
                 self._error_counts[operation] = 0
-            # Record in microseconds for sub-ms precision
-            self._histograms[operation].record_value(max(1, int(duration_ms * 1000)))
+            # Clamp to histogram range to prevent crashes on very slow operations
+            value_us = max(_MIN_VALUE_US, min(int(duration_ms * 1000), _MAX_VALUE_US))
+            self._histograms[operation].record_value(value_us)
 
     def record_error(
         self,
@@ -50,7 +57,9 @@ class Stats:
         with self._lock:
             if operation not in self._error_counts:
                 self._error_counts[operation] = 0
-                self._histograms[operation] = HdrHistogram(1, 60_000_000, 3)
+                self._histograms[operation] = HdrHistogram(
+                    _MIN_VALUE_US, _MAX_VALUE_US, 3
+                )
             self._error_counts[operation] += 1
             self._errors.append(
                 {

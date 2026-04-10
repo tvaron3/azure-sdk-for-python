@@ -23,6 +23,13 @@ def _get_git_sha() -> str:
     return "unknown"
 
 
+def _safe_int(value: object, default: int) -> int:
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def get_perf_config() -> dict:
     """Build performance reporter configuration from environment variables."""
     return {
@@ -30,7 +37,9 @@ def get_perf_config() -> dict:
         "results_endpoint": os.environ.get("RESULTS_COSMOS_URI", ""),
         "results_database": os.environ.get("RESULTS_COSMOS_DATABASE", "perfdb"),
         "results_container": os.environ.get("RESULTS_COSMOS_CONTAINER", "perfresults"),
-        "report_interval": int(os.environ.get("PERF_REPORT_INTERVAL", "300")),
+        "report_interval": _safe_int(
+            os.environ.get("PERF_REPORT_INTERVAL", "300"), 300
+        ),
         "workload_id": os.environ.get("PERF_WORKLOAD_ID", str(uuid.uuid4())),
         "commit_sha": os.environ.get("PERF_COMMIT_SHA", _get_git_sha()),
     }

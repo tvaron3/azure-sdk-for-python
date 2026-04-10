@@ -9,6 +9,7 @@ Environment variables:
   WORKLOAD_USE_SYNC    use sync client instead of async (default: false)
 """
 
+import logging
 import os
 import asyncio
 import time
@@ -19,9 +20,6 @@ from azure.core.pipeline.transport._aiohttp import AioHttpTransport
 
 from workload_utils import *
 from workload_configs import *
-from perf_config import get_perf_config
-from perf_stats import Stats
-from perf_reporter import PerfReporter
 
 
 async def run_workload_async(client_id, client_logger):
@@ -29,15 +27,27 @@ async def run_workload_async(client_id, client_logger):
     ops = WORKLOAD_OPERATIONS
     use_proxy = WORKLOAD_USE_PROXY
 
-    stats = Stats()
-    perf_config = get_perf_config()
+    stats = None
+    perf_config = None
     reporter = None
-    if perf_config["enabled"] and perf_config["results_endpoint"]:
-        reporter = PerfReporter(stats, perf_config)
-        reporter.start()
 
     try:
-        transport = None
+        from perf_config import get_perf_config
+
+        perf_config = get_perf_config()
+        if perf_config["enabled"] and perf_config["results_endpoint"]:
+            from perf_stats import Stats
+            from perf_reporter import PerfReporter
+
+            stats = Stats()
+            reporter = PerfReporter(stats, perf_config)
+            reporter.start()
+    except ImportError as e:
+        logging.getLogger(__name__).info("Perf reporting disabled: %s", e)
+
+    session = None
+    transport = None
+    try:
         if use_proxy:
             session = create_custom_session()
             transport = AioHttpTransport(session=session, session_owner=False)
@@ -88,19 +98,35 @@ async def run_workload_async(client_id, client_logger):
                 await client.__aexit__(None, None, None)
     finally:
         if reporter:
-            reporter.stop()
+            try:
+                reporter.stop()
+            except Exception:
+                pass
+        if session:
+            await session.close()
 
 
 def run_workload_sync(client_id, client_logger):
     """Sync workload loop — used when WORKLOAD_USE_SYNC=true."""
     ops = WORKLOAD_OPERATIONS
 
-    stats = Stats()
-    perf_config = get_perf_config()
+    stats = None
+    perf_config = None
     reporter = None
-    if perf_config["enabled"] and perf_config["results_endpoint"]:
-        reporter = PerfReporter(stats, perf_config)
-        reporter.start()
+
+    try:
+        from perf_config import get_perf_config
+
+        perf_config = get_perf_config()
+        if perf_config["enabled"] and perf_config["results_endpoint"]:
+            from perf_stats import Stats
+            from perf_reporter import PerfReporter
+
+            stats = Stats()
+            reporter = PerfReporter(stats, perf_config)
+            reporter.start()
+    except ImportError as e:
+        logging.getLogger(__name__).info("Perf reporting disabled: %s", e)
 
     try:
         connection_policy = documents.ConnectionPolicy()

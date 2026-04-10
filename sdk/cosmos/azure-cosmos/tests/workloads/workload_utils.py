@@ -70,6 +70,8 @@ def _get_upsert_item():
 
 def _record_error(stats, operation, error):
     """Extract Cosmos status codes and record the error in stats."""
+    if not stats:
+        return
     status_code = sub_status_code = None
     if isinstance(error, CosmosHttpResponseError):
         status_code = error.status_code
@@ -312,7 +314,9 @@ def create_inner_logger(file_name="internal_logger_tues"):
     prefix = os.path.splitext(file_name)[0] + "-" + str(os.getpid())
     # Create a rotating file handler
     handler = RotatingFileHandler(
-        "log-" + file_name + ".log", maxBytes=1024 * 1024 * 10, backupCount=5  # 10 mb
+        "log-" + file_name + ".log",
+        maxBytes=1024 * 1024 * 10,  # 10 mb
+        backupCount=5,
     )
     logger.setLevel(LOG_LEVEL)
     logger.addHandler(handler)
