@@ -79,7 +79,7 @@ class Stats:
                         "errors": errors,
                         "min_ms": hist.min_value / 1000.0,
                         "max_ms": hist.max_value / 1000.0,
-                        "mean_ms": hist.mean_value / 1000.0,
+                        "mean_ms": hist.get_mean_value() / 1000.0,
                         "p50_ms": hist.get_value_at_percentile(50.0) / 1000.0,
                         "p90_ms": hist.get_value_at_percentile(90.0) / 1000.0,
                         "p99_ms": hist.get_value_at_percentile(99.0) / 1000.0,
