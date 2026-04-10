@@ -6,11 +6,11 @@ import threading
 import time
 
 try:
-    from hdrhistogram import HdrHistogram
+    from hdrh.histogram import HdrHistogram
 except ImportError:
     raise ImportError(
         "hdrhistogram is required for perf_stats. "
-        "Install it with: pip install hdrhistogram"
+        "Install it with: pip install hdrhistogram (module name: hdrh)"
     )
 
 
