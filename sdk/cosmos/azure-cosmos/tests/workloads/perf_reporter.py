@@ -9,12 +9,9 @@ import threading
 import uuid
 from datetime import datetime, timezone
 
-from perf_stats import Stats
+import psutil
 
-try:
-    import psutil
-except ImportError:
-    psutil = None
+from perf_stats import Stats
 
 logger = logging.getLogger(__name__)
 
@@ -28,66 +25,37 @@ def _get_sdk_version() -> str:
         return "unknown"
 
 
-def _get_cpu_percent(process=None) -> float:
+def _get_cpu_percent(process) -> float:
     """Get current process CPU percent."""
-    if psutil and process:
-        try:
-            return process.cpu_percent(interval=None)
-        except Exception:
-            pass
-    return 0.0
-
-
-def _get_memory_bytes(process=None) -> int:
-    """Get current process RSS in bytes."""
-    if psutil and process:
-        try:
-            return process.memory_info().rss
-        except Exception:
-            pass
-    # Fallback: parse /proc on Linux
     try:
-        with open("/proc/self/status", "r") as f:
-            for line in f:
-                if line.startswith("VmRSS:"):
-                    return int(line.split()[1]) * 1024  # kB to bytes
+        return process.cpu_percent(interval=None)
     except Exception:
-        pass
-    return 0
+        return 0.0
+
+
+def _get_memory_bytes(process) -> int:
+    """Get current process RSS in bytes."""
+    try:
+        return process.memory_info().rss
+    except Exception:
+        return 0
 
 
 def _get_system_cpu_percent() -> float:
     """Get system-wide CPU percent."""
-    if psutil:
-        try:
-            return psutil.cpu_percent(interval=None)
-        except Exception:
-            pass
-    return 0.0
-
-
-def _get_system_memory() -> tuple[int, int]:
-    """Get system total and used memory in bytes."""
-    if psutil:
-        try:
-            mem = psutil.virtual_memory()
-            return mem.total, mem.used
-        except Exception:
-            pass
-    # Fallback: parse /proc/meminfo
     try:
-        info = {}
-        with open("/proc/meminfo", "r") as f:
-            for line in f:
-                parts = line.split()
-                if len(parts) >= 2:
-                    info[parts[0].rstrip(":")] = int(parts[1]) * 1024
-        total = info.get("MemTotal", 0)
-        available = info.get("MemAvailable", 0)
-        return total, total - available
+        return psutil.cpu_percent(interval=None)
     except Exception:
-        pass
-    return 0, 0
+        return 0.0
+
+
+def _get_system_memory() -> tuple:
+    """Get system total and used memory in bytes."""
+    try:
+        mem = psutil.virtual_memory()
+        return mem.total, mem.used
+    except Exception:
+        return 0, 0
 
 
 class PerfReporter:
@@ -103,12 +71,12 @@ class PerfReporter:
         self._stats = stats
         self._config = config
         self._stop_event = threading.Event()
-        self._thread: threading.Thread | None = None
+        self._thread = None
         self._client = None
         self._container = None
         self._hostname = socket.gethostname()
         self._sdk_version = _get_sdk_version()
-        self._process = psutil.Process() if psutil else None
+        self._process = psutil.Process()
 
     def start(self):
         """Start the background reporting thread (daemon)."""
@@ -128,7 +96,6 @@ class PerfReporter:
             self._flush()
         except Exception as e:
             logger.warning("PerfReporter final flush failed: %s", e)
-        # Close the CosmosClient to release connection pools
         if self._client:
             try:
                 self._client.close()
@@ -159,7 +126,7 @@ class PerfReporter:
         if self._container is not None:
             return
 
-        from azure.cosmos import CosmosClient, PartitionKey
+        from azure.cosmos import CosmosClient
         from azure.identity import DefaultAzureCredential
 
         endpoint = self._config["results_endpoint"]
@@ -182,13 +149,11 @@ class PerfReporter:
         sys_cpu = _get_system_cpu_percent()
         sys_total, sys_used = _get_system_memory()
 
-        # Import workload configs for config snapshot
         concurrency = _safe_int_env("COSMOS_CONCURRENT_REQUESTS", 100)
         preferred = os.environ.get("COSMOS_PREFERRED_LOCATIONS", "")
         excluded = os.environ.get("COSMOS_CLIENT_EXCLUDED_LOCATIONS", "")
         ppcb = os.environ.get("AZURE_COSMOS_ENABLE_CIRCUIT_BREAKER", "false").lower() == "true"
 
-        # Atomically drain both summaries and errors
         summaries, errors = self._stats.drain_all()
         for s in summaries:
             doc = {
@@ -224,7 +189,6 @@ class PerfReporter:
             except Exception as e:
                 logger.warning("PerfReporter upsert failed for %s: %s", s["operation"], e)
 
-        # Upsert error documents
         for err in errors:
             doc = {
                 "id": str(uuid.uuid4()),
