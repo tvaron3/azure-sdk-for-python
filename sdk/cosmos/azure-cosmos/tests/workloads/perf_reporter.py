@@ -192,6 +192,7 @@ class PerfReporter:
                 "config_application_region": preferred,
                 "config_excluded_regions": excluded,
                 "config_ppcb_enabled": ppcb,
+                "config_multi_write_enabled": multi_write,
             }
             try:
                 self._container.upsert_item(doc)
