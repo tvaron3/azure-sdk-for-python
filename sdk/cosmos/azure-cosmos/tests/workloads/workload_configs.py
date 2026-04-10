@@ -38,3 +38,7 @@ if _unknown_ops:
     raise ValueError(f"Unknown WORKLOAD_OPERATIONS: {_unknown_ops}. Valid: {_VALID_OPERATIONS}")
 WORKLOAD_USE_PROXY = os.environ.get("WORKLOAD_USE_PROXY", "false").lower() == "true"
 WORKLOAD_USE_SYNC = os.environ.get("WORKLOAD_USE_SYNC", "false").lower() == "true"
+
+# When true, the client is created without a context manager (no automatic close).
+# Simulates applications that don't properly close the Cosmos client.
+WORKLOAD_SKIP_CLOSE = os.environ.get("WORKLOAD_SKIP_CLOSE", "false").lower() == "true"

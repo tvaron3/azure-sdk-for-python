@@ -54,7 +54,14 @@ async def run_workload_async(client_id, client_logger):
         if USE_MULTIPLE_WRITABLE_LOCATIONS:
             client_kwargs["multiple_write_locations"] = True
 
-        async with AsyncClient(COSMOS_URI, COSMOS_CREDENTIAL, **client_kwargs) as client:
+        if WORKLOAD_SKIP_CLOSE:
+            # Simulate applications that don't properly close the client
+            client = AsyncClient(COSMOS_URI, COSMOS_CREDENTIAL, **client_kwargs)
+        else:
+            client = AsyncClient(COSMOS_URI, COSMOS_CREDENTIAL, **client_kwargs)
+            await client.__aenter__()
+
+        try:
             db = client.get_database_client(COSMOS_DATABASE)
             cont = db.get_container_client(COSMOS_CONTAINER)
             await asyncio.sleep(1)
@@ -70,6 +77,9 @@ async def run_workload_async(client_id, client_logger):
                 except Exception as e:
                     client_logger.info("Exception in application layer")
                     client_logger.error(e)
+        finally:
+            if not WORKLOAD_SKIP_CLOSE:
+                await client.__aexit__(None, None, None)
     finally:
         if reporter:
             reporter.stop()
