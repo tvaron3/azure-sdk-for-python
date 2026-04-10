@@ -70,8 +70,8 @@ Manual steps remaining:
    cd ../tests/workloads
    python3 initial-setup.py
 5. Run scale workloads:
-   ./run_workloads.sh <number of clients per workload>
+   WORKLOAD_OPERATIONS=read,write,query python3 workload.py
 
-Refer to dev.md for more details.
+See cosmos-sdk-copilot-toolkit repo for deployment docs.
 EOF
 echo "[Step 6] Manual steps: completed."

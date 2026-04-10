@@ -69,11 +69,17 @@ async def run_workload_async(client_id, client_logger):
             while True:
                 try:
                     if "write" in ops:
-                        await upsert_item_concurrently(cont, REQUEST_EXCLUDED_LOCATIONS, CONCURRENT_REQUESTS, stats)
+                        await upsert_item_concurrently(
+                            cont, REQUEST_EXCLUDED_LOCATIONS, CONCURRENT_REQUESTS, stats
+                        )
                     if "read" in ops:
-                        await read_item_concurrently(cont, REQUEST_EXCLUDED_LOCATIONS, CONCURRENT_REQUESTS, stats)
+                        await read_item_concurrently(
+                            cont, REQUEST_EXCLUDED_LOCATIONS, CONCURRENT_REQUESTS, stats
+                        )
                     if "query" in ops:
-                        await query_items_concurrently(cont, REQUEST_EXCLUDED_LOCATIONS, CONCURRENT_QUERIES, stats)
+                        await query_items_concurrently(
+                            cont, REQUEST_EXCLUDED_LOCATIONS, CONCURRENT_QUERIES, stats
+                        )
                 except Exception as e:
                     client_logger.info("Exception in application layer")
                     client_logger.error(e)
@@ -100,13 +106,16 @@ def run_workload_sync(client_id, client_logger):
         connection_policy = documents.ConnectionPolicy()
         connection_policy.UseMultipleWriteLocations = USE_MULTIPLE_WRITABLE_LOCATIONS
 
-        with SyncClient(COSMOS_URI, COSMOS_CREDENTIAL,
-                        connection_policy=connection_policy,
-                        preferred_locations=PREFERRED_LOCATIONS,
-                        excluded_locations=CLIENT_EXCLUDED_LOCATIONS,
-                        enable_diagnostics_logging=True,
-                        logger=client_logger,
-                        user_agent=get_user_agent(client_id)) as client:
+        with SyncClient(
+            COSMOS_URI,
+            COSMOS_CREDENTIAL,
+            connection_policy=connection_policy,
+            preferred_locations=PREFERRED_LOCATIONS,
+            excluded_locations=CLIENT_EXCLUDED_LOCATIONS,
+            enable_diagnostics_logging=True,
+            logger=client_logger,
+            user_agent=get_user_agent(client_id),
+        ) as client:
             db = client.get_database_client(COSMOS_DATABASE)
             cont = db.get_container_client(COSMOS_CONTAINER)
             time.sleep(1)
@@ -114,11 +123,17 @@ def run_workload_sync(client_id, client_logger):
             while True:
                 try:
                     if "write" in ops:
-                        upsert_item(cont, REQUEST_EXCLUDED_LOCATIONS, CONCURRENT_REQUESTS, stats)
+                        upsert_item(
+                            cont, REQUEST_EXCLUDED_LOCATIONS, CONCURRENT_REQUESTS, stats
+                        )
                     if "read" in ops:
-                        read_item(cont, REQUEST_EXCLUDED_LOCATIONS, CONCURRENT_REQUESTS, stats)
+                        read_item(
+                            cont, REQUEST_EXCLUDED_LOCATIONS, CONCURRENT_REQUESTS, stats
+                        )
                     if "query" in ops:
-                        query_items(cont, REQUEST_EXCLUDED_LOCATIONS, CONCURRENT_QUERIES, stats)
+                        query_items(
+                            cont, REQUEST_EXCLUDED_LOCATIONS, CONCURRENT_QUERIES, stats
+                        )
                 except Exception as e:
                     client_logger.info("Exception in application layer")
                     client_logger.error(e)

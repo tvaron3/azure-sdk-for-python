@@ -20,6 +20,7 @@ def _get_sdk_version() -> str:
     """Get the azure-cosmos SDK version string."""
     try:
         from azure.cosmos import __version__
+
         return __version__
     except Exception:
         return "unknown"
@@ -80,10 +81,15 @@ class PerfReporter:
 
     def start(self):
         """Start the background reporting thread (daemon)."""
-        self._thread = threading.Thread(target=self._run, daemon=True, name="perf-reporter")
+        self._thread = threading.Thread(
+            target=self._run, daemon=True, name="perf-reporter"
+        )
         self._thread.start()
-        logger.info("PerfReporter started (interval=%ds, workload_id=%s)",
-                     self._config["report_interval"], self._config["workload_id"])
+        logger.info(
+            "PerfReporter started (interval=%ds, workload_id=%s)",
+            self._config["report_interval"],
+            self._config["workload_id"],
+        )
 
     def stop(self):
         """Stop the reporter and flush final results."""
@@ -152,7 +158,10 @@ class PerfReporter:
         concurrency = _safe_int_env("COSMOS_CONCURRENT_REQUESTS", 100)
         preferred = os.environ.get("COSMOS_PREFERRED_LOCATIONS", "")
         excluded = os.environ.get("COSMOS_CLIENT_EXCLUDED_LOCATIONS", "")
-        ppcb = os.environ.get("AZURE_COSMOS_ENABLE_CIRCUIT_BREAKER", "false").lower() == "true"
+        ppcb = (
+            os.environ.get("AZURE_COSMOS_ENABLE_CIRCUIT_BREAKER", "false").lower()
+            == "true"
+        )
 
         summaries, errors = self._stats.drain_all()
         for s in summaries:
@@ -187,7 +196,9 @@ class PerfReporter:
             try:
                 self._container.upsert_item(doc)
             except Exception as e:
-                logger.warning("PerfReporter upsert failed for %s: %s", s["operation"], e)
+                logger.warning(
+                    "PerfReporter upsert failed for %s: %s", s["operation"], e
+                )
 
         for err in errors:
             doc = {

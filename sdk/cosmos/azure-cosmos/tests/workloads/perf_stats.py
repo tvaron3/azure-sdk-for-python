@@ -38,22 +38,30 @@ class Stats:
             # Record in microseconds for sub-ms precision
             self._histograms[operation].record_value(max(1, int(duration_ms * 1000)))
 
-    def record_error(self, operation: str, error_msg: str, traceback_str: str,
-                     status_code: int = None, sub_status_code: int = None):
+    def record_error(
+        self,
+        operation: str,
+        error_msg: str,
+        traceback_str: str,
+        status_code: int = None,
+        sub_status_code: int = None,
+    ):
         """Record a failed operation with error details."""
         with self._lock:
             if operation not in self._error_counts:
                 self._error_counts[operation] = 0
                 self._histograms[operation] = HdrHistogram(1, 60_000_000, 3)
             self._error_counts[operation] += 1
-            self._errors.append({
-                "operation": operation,
-                "error_message": error_msg,
-                "source_message": traceback_str,
-                "error_status_code": status_code,
-                "error_sub_status_code": sub_status_code,
-                "timestamp": time.time(),
-            })
+            self._errors.append(
+                {
+                    "operation": operation,
+                    "error_message": error_msg,
+                    "source_message": traceback_str,
+                    "error_status_code": status_code,
+                    "error_sub_status_code": sub_status_code,
+                    "timestamp": time.time(),
+                }
+            )
 
     def drain_all(self) -> tuple[list[dict], list[dict]]:
         """Atomically drain both summaries and error details under one lock.
@@ -65,7 +73,9 @@ class Stats:
         """
         with self._lock:
             summaries = []
-            all_ops = set(list(self._histograms.keys()) + list(self._error_counts.keys()))
+            all_ops = set(
+                list(self._histograms.keys()) + list(self._error_counts.keys())
+            )
             for op in sorted(all_ops):
                 hist = self._histograms.get(op)
                 errors = self._error_counts.get(op, 0)
@@ -73,29 +83,33 @@ class Stats:
                 if count == 0 and errors == 0:
                     continue
                 if count > 0:
-                    summaries.append({
-                        "operation": op,
-                        "count": count,
-                        "errors": errors,
-                        "min_ms": hist.min_value / 1000.0,
-                        "max_ms": hist.max_value / 1000.0,
-                        "mean_ms": hist.get_mean_value() / 1000.0,
-                        "p50_ms": hist.get_value_at_percentile(50.0) / 1000.0,
-                        "p90_ms": hist.get_value_at_percentile(90.0) / 1000.0,
-                        "p99_ms": hist.get_value_at_percentile(99.0) / 1000.0,
-                    })
+                    summaries.append(
+                        {
+                            "operation": op,
+                            "count": count,
+                            "errors": errors,
+                            "min_ms": hist.min_value / 1000.0,
+                            "max_ms": hist.max_value / 1000.0,
+                            "mean_ms": hist.get_mean_value() / 1000.0,
+                            "p50_ms": hist.get_value_at_percentile(50.0) / 1000.0,
+                            "p90_ms": hist.get_value_at_percentile(90.0) / 1000.0,
+                            "p99_ms": hist.get_value_at_percentile(99.0) / 1000.0,
+                        }
+                    )
                 else:
-                    summaries.append({
-                        "operation": op,
-                        "count": 0,
-                        "errors": errors,
-                        "min_ms": 0.0,
-                        "max_ms": 0.0,
-                        "mean_ms": 0.0,
-                        "p50_ms": 0.0,
-                        "p90_ms": 0.0,
-                        "p99_ms": 0.0,
-                    })
+                    summaries.append(
+                        {
+                            "operation": op,
+                            "count": 0,
+                            "errors": errors,
+                            "min_ms": 0.0,
+                            "max_ms": 0.0,
+                            "mean_ms": 0.0,
+                            "p50_ms": 0.0,
+                            "p90_ms": 0.0,
+                            "p99_ms": 0.0,
+                        }
+                    )
             # Reset for next interval
             self._histograms.clear()
             self._error_counts.clear()
