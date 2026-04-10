@@ -1,31 +1,42 @@
 # The MIT License (MIT)
 # Copyright (c) Microsoft Corporation. All rights reserved.
-"""Thread-safe per-operation latency histogram and error tracking."""
+"""Thread-safe per-operation latency histogram and error tracking using HdrHistogram."""
 
 import threading
 import time
 
+try:
+    from hdrhistogram import HdrHistogram
+except ImportError:
+    raise ImportError(
+        "hdrhistogram is required for perf_stats. "
+        "Install it with: pip install hdrhistogram"
+    )
+
 
 class Stats:
-    """Thread-safe per-operation latency and error tracking.
+    """Thread-safe per-operation latency and error tracking using HdrHistogram.
 
-    Uses a sorted-list percentile calculation to avoid native dependencies.
-    A background reporter drains accumulated data every reporting interval.
+    Uses HdrHistogram for O(1) record/query with fixed ~40KB memory per histogram,
+    replacing the previous sorted-list approach that grew unbounded.
+    Values are stored in microseconds internally for sub-ms precision.
     """
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._latencies: dict[str, list[float]] = {}
+        # min 1 microsecond, max 60 seconds (in microseconds), 3 significant digits
+        self._histograms: dict[str, HdrHistogram] = {}
         self._error_counts: dict[str, int] = {}
         self._errors: list[dict] = []
 
     def record(self, operation: str, duration_ms: float):
         """Record a successful operation with its duration in milliseconds."""
         with self._lock:
-            if operation not in self._latencies:
-                self._latencies[operation] = []
+            if operation not in self._histograms:
+                self._histograms[operation] = HdrHistogram(1, 60_000_000, 3)
                 self._error_counts[operation] = 0
-            self._latencies[operation].append(duration_ms)
+            # Record in microseconds for sub-ms precision
+            self._histograms[operation].record_value(max(1, int(duration_ms * 1000)))
 
     def record_error(self, operation: str, error_msg: str, traceback_str: str,
                      status_code: int = None, sub_status_code: int = None):
@@ -33,7 +44,7 @@ class Stats:
         with self._lock:
             if operation not in self._error_counts:
                 self._error_counts[operation] = 0
-                self._latencies[operation] = []
+                self._histograms[operation] = HdrHistogram(1, 60_000_000, 3)
             self._error_counts[operation] += 1
             self._errors.append({
                 "operation": operation,
@@ -54,26 +65,24 @@ class Stats:
         """
         with self._lock:
             summaries = []
-            all_ops = set(self._latencies.keys()) | set(self._error_counts.keys())
+            all_ops = set(list(self._histograms.keys()) + list(self._error_counts.keys()))
             for op in sorted(all_ops):
-                latencies = self._latencies.get(op, [])
+                hist = self._histograms.get(op)
                 errors = self._error_counts.get(op, 0)
-                count = len(latencies)
+                count = hist.total_count if hist else 0
                 if count == 0 and errors == 0:
                     continue
                 if count > 0:
-                    latencies.sort()
-                    total = sum(latencies)
                     summaries.append({
                         "operation": op,
                         "count": count,
                         "errors": errors,
-                        "min_ms": latencies[0],
-                        "max_ms": latencies[-1],
-                        "mean_ms": total / count,
-                        "p50_ms": _percentile(latencies, 50.0),
-                        "p90_ms": _percentile(latencies, 90.0),
-                        "p99_ms": _percentile(latencies, 99.0),
+                        "min_ms": hist.min_value / 1000.0,
+                        "max_ms": hist.max_value / 1000.0,
+                        "mean_ms": hist.mean_value / 1000.0,
+                        "p50_ms": hist.get_value_at_percentile(50.0) / 1000.0,
+                        "p90_ms": hist.get_value_at_percentile(90.0) / 1000.0,
+                        "p99_ms": hist.get_value_at_percentile(99.0) / 1000.0,
                     })
                 else:
                     summaries.append({
@@ -87,7 +96,8 @@ class Stats:
                         "p90_ms": 0.0,
                         "p99_ms": 0.0,
                     })
-            self._latencies.clear()
+            # Reset for next interval
+            self._histograms.clear()
             self._error_counts.clear()
             error_details = self._errors
             self._errors = []
@@ -102,19 +112,3 @@ class Stats:
         """Drain accumulated error details."""
         _, errors = self.drain_all()
         return errors
-
-
-def _percentile(sorted_data: list[float], pct: float) -> float:
-    """Calculate percentile from pre-sorted data using nearest-rank method."""
-    n = len(sorted_data)
-    if n == 0:
-        return 0.0
-    if n == 1:
-        return sorted_data[0]
-    rank = (pct / 100.0) * (n - 1)
-    lower = int(rank)
-    upper = lower + 1
-    if upper >= n:
-        return sorted_data[-1]
-    fraction = rank - lower
-    return sorted_data[lower] + fraction * (sorted_data[upper] - sorted_data[lower])

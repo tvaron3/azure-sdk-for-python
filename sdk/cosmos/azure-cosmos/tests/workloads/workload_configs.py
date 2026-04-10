@@ -25,3 +25,16 @@ CONCURRENT_QUERIES = int(os.environ.get("COSMOS_CONCURRENT_QUERIES", "2"))
 PARTITION_KEY = os.environ.get("COSMOS_PARTITION_KEY", "id")
 NUMBER_OF_LOGICAL_PARTITIONS = int(os.environ.get("COSMOS_NUMBER_OF_LOGICAL_PARTITIONS", "10000"))
 THROUGHPUT = int(os.environ.get("COSMOS_THROUGHPUT", "1000000"))
+
+# Workload behavior
+_VALID_OPERATIONS = {"read", "write", "query"}
+WORKLOAD_OPERATIONS = frozenset(
+    op.strip().lower()
+    for op in os.environ.get("WORKLOAD_OPERATIONS", "read,write,query").split(",")
+    if op.strip()
+)
+_unknown_ops = WORKLOAD_OPERATIONS - _VALID_OPERATIONS
+if _unknown_ops:
+    raise ValueError(f"Unknown WORKLOAD_OPERATIONS: {_unknown_ops}. Valid: {_VALID_OPERATIONS}")
+WORKLOAD_USE_PROXY = os.environ.get("WORKLOAD_USE_PROXY", "false").lower() == "true"
+WORKLOAD_USE_SYNC = os.environ.get("WORKLOAD_USE_SYNC", "false").lower() == "true"
