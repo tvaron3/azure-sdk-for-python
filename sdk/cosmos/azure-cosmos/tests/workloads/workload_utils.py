@@ -69,7 +69,7 @@ def _record_error(stats, operation, error):
 def upsert_item(container, excluded_locations, num_upserts, stats=None):
     item = _get_upsert_item()
     for _ in range(num_upserts):
-        start = time.perf_counter()
+        start = time.perf_counter_ns()
         try:
             if excluded_locations:
                 container.upsert_item(item, etag=None, match_condition=None,
@@ -77,7 +77,7 @@ def upsert_item(container, excluded_locations, num_upserts, stats=None):
             else:
                 container.upsert_item(item, etag=None, match_condition=None)
             if stats:
-                stats.record("UpsertItem", (time.perf_counter() - start) * 1000)
+                stats.record("UpsertItem", (time.perf_counter_ns() - start) / 1_000_000)
         except Exception as e:
             if stats:
                 _record_error(stats, "UpsertItem", e)
@@ -87,7 +87,7 @@ def upsert_item(container, excluded_locations, num_upserts, stats=None):
 def read_item(container, excluded_locations, num_reads, stats=None):
     for _ in range(num_reads):
         item = get_existing_random_item()
-        start = time.perf_counter()
+        start = time.perf_counter_ns()
         try:
             if excluded_locations:
                 container.read_item(item["id"], item[PARTITION_KEY], etag=None, match_condition=None,
@@ -95,7 +95,7 @@ def read_item(container, excluded_locations, num_reads, stats=None):
             else:
                 container.read_item(item["id"], item[PARTITION_KEY], etag=None, match_condition=None)
             if stats:
-                stats.record("ReadItem", (time.perf_counter() - start) * 1000)
+                stats.record("ReadItem", (time.perf_counter_ns() - start) / 1_000_000)
         except Exception as e:
             if stats:
                 _record_error(stats, "ReadItem", e)
@@ -108,7 +108,7 @@ def query_items(container, excluded_locations, num_queries, stats=None):
 
 def perform_query(container, excluded_locations, stats=None):
     random_item = get_existing_random_item()
-    start = time.perf_counter()
+    start = time.perf_counter_ns()
     try:
         if excluded_locations:
             results = container.query_items(query="SELECT * FROM c where c.id=@id and c.pk=@pk",
@@ -123,7 +123,7 @@ def perform_query(container, excluded_locations, stats=None):
                                             partition_key=random_item[PARTITION_KEY])
         items = [item for item in results]
         if stats:
-            stats.record("QueryItems", (time.perf_counter() - start) * 1000)
+            stats.record("QueryItems", (time.perf_counter_ns() - start) / 1_000_000)
     except Exception as e:
         if stats:
             _record_error(stats, "QueryItems", e)
@@ -132,7 +132,7 @@ def perform_query(container, excluded_locations, stats=None):
 
 async def _timed_upsert_async(container, item, excluded_locations, stats):
     """Single async upsert with timing and error tracking."""
-    start = time.perf_counter()
+    start = time.perf_counter_ns()
     try:
         if excluded_locations:
             await container.upsert_item(item, etag=None, match_condition=None,
@@ -140,7 +140,7 @@ async def _timed_upsert_async(container, item, excluded_locations, stats):
         else:
             await container.upsert_item(item, etag=None, match_condition=None)
         if stats:
-            stats.record("UpsertItem", (time.perf_counter() - start) * 1000)
+            stats.record("UpsertItem", (time.perf_counter_ns() - start) / 1_000_000)
     except Exception as e:
         if stats:
             _record_error(stats, "UpsertItem", e)
@@ -149,7 +149,7 @@ async def _timed_upsert_async(container, item, excluded_locations, stats):
 
 async def _timed_read_async(container, item, excluded_locations, stats):
     """Single async read with timing and error tracking."""
-    start = time.perf_counter()
+    start = time.perf_counter_ns()
     try:
         if excluded_locations:
             await container.read_item(item["id"], item[PARTITION_KEY], etag=None, match_condition=None,
@@ -157,7 +157,7 @@ async def _timed_read_async(container, item, excluded_locations, stats):
         else:
             await container.read_item(item["id"], item[PARTITION_KEY], etag=None, match_condition=None)
         if stats:
-            stats.record("ReadItem", (time.perf_counter() - start) * 1000)
+            stats.record("ReadItem", (time.perf_counter_ns() - start) / 1_000_000)
     except Exception as e:
         if stats:
             _record_error(stats, "ReadItem", e)
@@ -166,7 +166,7 @@ async def _timed_read_async(container, item, excluded_locations, stats):
 
 async def _timed_query_async(container, random_item, excluded_locations, stats):
     """Single async query with timing and error tracking."""
-    start = time.perf_counter()
+    start = time.perf_counter_ns()
     try:
         if excluded_locations:
             results = container.query_items(query="SELECT * FROM c where c.id=@id and c.pk=@pk",
@@ -181,7 +181,7 @@ async def _timed_query_async(container, random_item, excluded_locations, stats):
                                             partition_key=random_item[PARTITION_KEY])
         items = [item async for item in results]
         if stats:
-            stats.record("QueryItems", (time.perf_counter() - start) * 1000)
+            stats.record("QueryItems", (time.perf_counter_ns() - start) / 1_000_000)
     except Exception as e:
         if stats:
             _record_error(stats, "QueryItems", e)
