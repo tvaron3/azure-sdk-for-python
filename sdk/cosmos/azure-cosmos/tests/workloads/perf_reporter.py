@@ -162,6 +162,10 @@ class PerfReporter:
             os.environ.get("AZURE_COSMOS_ENABLE_CIRCUIT_BREAKER", "false").lower()
             == "true"
         )
+        multi_write = (
+            os.environ.get("COSMOS_USE_MULTIPLE_WRITABLE_LOCATIONS", "false").lower()
+            == "true"
+        )
 
         summaries, errors = self._stats.drain_all()
         for s in summaries:
