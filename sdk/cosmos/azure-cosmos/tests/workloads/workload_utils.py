@@ -4,11 +4,14 @@ import asyncio
 import os
 import random
 import sys
+import time
+import traceback
 import uuid
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from aiohttp import ClientSession
 from azure.monitor.opentelemetry import configure_azure_monitor
+from azure.cosmos.exceptions import CosmosHttpResponseError
 
 from custom_tcp_connector import ProxiedTCPConnector
 from workload_configs import *
@@ -53,73 +56,159 @@ def _get_upsert_item():
     # 10 percent of the time, create a new item instead of updating an existing one
     return create_random_item() if random.random() < 0.1 else get_existing_random_item()
 
-def upsert_item(container, excluded_locations, num_upserts):
+def _record_error(stats, operation, error):
+    """Extract Cosmos status codes and record the error in stats."""
+    status_code = sub_status_code = None
+    if isinstance(error, CosmosHttpResponseError):
+        status_code = error.status_code
+        sub_status_code = getattr(error, 'sub_status', None)
+    stats.record_error(operation, str(error), traceback.format_exc(),
+                       status_code, sub_status_code)
+
+
+def upsert_item(container, excluded_locations, num_upserts, stats=None):
     item = _get_upsert_item()
     for _ in range(num_upserts):
-        if excluded_locations:
-            container.upsert_item(item, etag=None, match_condition=None,
-                                  excluded_locations=excluded_locations)
-        else:
-            container.upsert_item(item, etag=None, match_condition=None)
+        start = time.perf_counter()
+        try:
+            if excluded_locations:
+                container.upsert_item(item, etag=None, match_condition=None,
+                                      excluded_locations=excluded_locations)
+            else:
+                container.upsert_item(item, etag=None, match_condition=None)
+            if stats:
+                stats.record("UpsertItem", (time.perf_counter() - start) * 1000)
+        except Exception as e:
+            if stats:
+                _record_error(stats, "UpsertItem", e)
+            raise
 
 
-def read_item(container, excluded_locations, num_reads):
+def read_item(container, excluded_locations, num_reads, stats=None):
     for _ in range(num_reads):
         item = get_existing_random_item()
-        if excluded_locations:
-            container.read_item(item["id"], item[PARTITION_KEY], etag=None, match_condition=None,
-                                excluded_locations=excluded_locations)
-        else:
-            container.read_item(item["id"], item[PARTITION_KEY], etag=None, match_condition=None)
+        start = time.perf_counter()
+        try:
+            if excluded_locations:
+                container.read_item(item["id"], item[PARTITION_KEY], etag=None, match_condition=None,
+                                    excluded_locations=excluded_locations)
+            else:
+                container.read_item(item["id"], item[PARTITION_KEY], etag=None, match_condition=None)
+            if stats:
+                stats.record("ReadItem", (time.perf_counter() - start) * 1000)
+        except Exception as e:
+            if stats:
+                _record_error(stats, "ReadItem", e)
+            raise
 
-def query_items(container, excluded_locations, num_queries):
+def query_items(container, excluded_locations, num_queries, stats=None):
     for _ in range(num_queries):
-        perform_query(container, excluded_locations)
+        perform_query(container, excluded_locations, stats)
 
 
-def perform_query(container, excluded_locations):
+def perform_query(container, excluded_locations, stats=None):
     random_item = get_existing_random_item()
-    if excluded_locations:
-        results = container.query_items(query="SELECT * FROM c where c.id=@id and c.pk=@pk",
-                                        parameters=[{"name": "@id", "value": random_item["id"]},
-                                                    {"name": "@pk", "value": random_item["pk"]}],
-                                        partition_key=random_item[PARTITION_KEY],
-                                        excluded_locations=excluded_locations)
-    else:
-        results = container.query_items(query="SELECT * FROM c where c.id=@id and c.pk=@pk",
-                                        parameters=[{"name": "@id", "value": random_item["id"]},
-                                                    {"name": "@pk", "value": random_item["pk"]}],
-                                        partition_key=random_item[PARTITION_KEY])
-    items = [item for item in results]
+    start = time.perf_counter()
+    try:
+        if excluded_locations:
+            results = container.query_items(query="SELECT * FROM c where c.id=@id and c.pk=@pk",
+                                            parameters=[{"name": "@id", "value": random_item["id"]},
+                                                        {"name": "@pk", "value": random_item["pk"]}],
+                                            partition_key=random_item[PARTITION_KEY],
+                                            excluded_locations=excluded_locations)
+        else:
+            results = container.query_items(query="SELECT * FROM c where c.id=@id and c.pk=@pk",
+                                            parameters=[{"name": "@id", "value": random_item["id"]},
+                                                        {"name": "@pk", "value": random_item["pk"]}],
+                                            partition_key=random_item[PARTITION_KEY])
+        items = [item for item in results]
+        if stats:
+            stats.record("QueryItems", (time.perf_counter() - start) * 1000)
+    except Exception as e:
+        if stats:
+            _record_error(stats, "QueryItems", e)
+        raise
 
-async def upsert_item_concurrently(container, excluded_locations, num_upserts):
+
+async def _timed_upsert_async(container, item, excluded_locations, stats):
+    """Single async upsert with timing and error tracking."""
+    start = time.perf_counter()
+    try:
+        if excluded_locations:
+            await container.upsert_item(item, etag=None, match_condition=None,
+                                        excluded_locations=excluded_locations)
+        else:
+            await container.upsert_item(item, etag=None, match_condition=None)
+        if stats:
+            stats.record("UpsertItem", (time.perf_counter() - start) * 1000)
+    except Exception as e:
+        if stats:
+            _record_error(stats, "UpsertItem", e)
+        raise
+
+
+async def _timed_read_async(container, item, excluded_locations, stats):
+    """Single async read with timing and error tracking."""
+    start = time.perf_counter()
+    try:
+        if excluded_locations:
+            await container.read_item(item["id"], item[PARTITION_KEY], etag=None, match_condition=None,
+                                      excluded_locations=excluded_locations)
+        else:
+            await container.read_item(item["id"], item[PARTITION_KEY], etag=None, match_condition=None)
+        if stats:
+            stats.record("ReadItem", (time.perf_counter() - start) * 1000)
+    except Exception as e:
+        if stats:
+            _record_error(stats, "ReadItem", e)
+        raise
+
+
+async def _timed_query_async(container, random_item, excluded_locations, stats):
+    """Single async query with timing and error tracking."""
+    start = time.perf_counter()
+    try:
+        if excluded_locations:
+            results = container.query_items(query="SELECT * FROM c where c.id=@id and c.pk=@pk",
+                                            parameters=[{"name": "@id", "value": random_item["id"]},
+                                                        {"name": "@pk", "value": random_item["pk"]}],
+                                            partition_key=random_item[PARTITION_KEY],
+                                            excluded_locations=excluded_locations)
+        else:
+            results = container.query_items(query="SELECT * FROM c where c.id=@id and c.pk=@pk",
+                                            parameters=[{"name": "@id", "value": random_item["id"]},
+                                                        {"name": "@pk", "value": random_item["pk"]}],
+                                            partition_key=random_item[PARTITION_KEY])
+        items = [item async for item in results]
+        if stats:
+            stats.record("QueryItems", (time.perf_counter() - start) * 1000)
+    except Exception as e:
+        if stats:
+            _record_error(stats, "QueryItems", e)
+        raise
+
+
+async def upsert_item_concurrently(container, excluded_locations, num_upserts, stats=None):
     tasks = []
     for _ in range(num_upserts):
         item = _get_upsert_item()
-        if excluded_locations:
-            tasks.append(container.upsert_item(item, etag=None, match_condition=None,
-                                               excluded_locations=excluded_locations))
-        else:
-            tasks.append(container.upsert_item(item, etag=None, match_condition=None))
+        tasks.append(_timed_upsert_async(container, item, excluded_locations, stats))
     await asyncio.gather(*tasks)
 
 
-async def read_item_concurrently(container, excluded_locations, num_reads):
+async def read_item_concurrently(container, excluded_locations, num_reads, stats=None):
     tasks = []
     for _ in range(num_reads):
         item = get_existing_random_item()
-        if excluded_locations:
-            tasks.append(container.read_item(item["id"], item[PARTITION_KEY], etag=None, match_condition=None,
-                                             excluded_locations=excluded_locations))
-        else:
-            tasks.append(container.read_item(item["id"], item[PARTITION_KEY], etag=None, match_condition=None))
+        tasks.append(_timed_read_async(container, item, excluded_locations, stats))
     await asyncio.gather(*tasks)
 
 
-async def query_items_concurrently(container, excluded_locations, num_queries):
+async def query_items_concurrently(container, excluded_locations, num_queries, stats=None):
     tasks = []
     for _ in range(num_queries):
-        tasks.append(perform_query_concurrently(container, excluded_locations))
+        random_item = get_existing_random_item()
+        tasks.append(_timed_query_async(container, random_item, excluded_locations, stats))
     await asyncio.gather(*tasks)
 
 def create_custom_session():
@@ -132,21 +221,6 @@ def create_custom_session():
 
     session = ClientSession(connector=proxied_connector)
     return session
-
-async def perform_query_concurrently(container, excluded_locations):
-    random_item = get_existing_random_item()
-    if excluded_locations:
-        results = container.query_items(query="SELECT * FROM c where c.id=@id and c.pk=@pk",
-                                        parameters=[{"name": "@id", "value": random_item["id"]},
-                                                    {"name": "@pk", "value": random_item["pk"]}],
-                                        partition_key=random_item[PARTITION_KEY],
-                                        excluded_locations=excluded_locations)
-    else:
-        results = container.query_items(query="SELECT * FROM c where c.id=@id and c.pk=@pk",
-                                        parameters=[{"name": "@id", "value": random_item["id"]},
-                                                    {"name": "@pk", "value": random_item["pk"]}],
-                                        partition_key=random_item[PARTITION_KEY])
-    items = [item async for item in results]
 
 def create_logger(file_name):
     os.environ["AZURE_COSMOS_ENABLE_CIRCUIT_BREAKER"] = str(CIRCUIT_BREAKER_ENABLED)

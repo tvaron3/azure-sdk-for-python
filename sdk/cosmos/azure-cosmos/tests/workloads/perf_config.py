@@ -1,0 +1,34 @@
+# The MIT License (MIT)
+# Copyright (c) Microsoft Corporation. All rights reserved.
+"""Performance reporting configuration from environment variables."""
+
+import os
+import subprocess
+import uuid
+
+
+def _get_git_sha() -> str:
+    """Get the current git commit SHA, or 'unknown' if unavailable."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "unknown"
+
+
+def get_perf_config() -> dict:
+    """Build performance reporter configuration from environment variables."""
+    return {
+        "enabled": os.environ.get("PERF_ENABLED", "true").lower() == "true",
+        "results_endpoint": os.environ.get("RESULTS_COSMOS_URI", ""),
+        "results_database": os.environ.get("RESULTS_COSMOS_DATABASE", "perfdb"),
+        "results_container": os.environ.get("RESULTS_COSMOS_CONTAINER", "perfresults"),
+        "report_interval": int(os.environ.get("PERF_REPORT_INTERVAL", "300")),
+        "workload_id": os.environ.get("PERF_WORKLOAD_ID", str(uuid.uuid4())),
+        "commit_sha": os.environ.get("PERF_COMMIT_SHA", _get_git_sha()),
+    }

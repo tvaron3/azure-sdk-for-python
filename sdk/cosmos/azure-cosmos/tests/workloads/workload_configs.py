@@ -1,25 +1,27 @@
 # The MIT License (MIT)
 # Copyright (c) Microsoft Corporation. All rights reserved.
-# Replace with your Cosmos DB details
+# All configuration is driven by environment variables with sensible defaults.
 import logging
+import os
+
 from azure.identity import DefaultAzureCredential
 
-PREFERRED_LOCATIONS = []
-CLIENT_EXCLUDED_LOCATIONS = []
-REQUEST_EXCLUDED_LOCATIONS = []
-COSMOS_PROXY_URI = "0.0.0.0"
-COSMOS_URI = ""
-COSMOS_KEY = ""
+PREFERRED_LOCATIONS = os.environ.get("COSMOS_PREFERRED_LOCATIONS", "").split(",") if os.environ.get("COSMOS_PREFERRED_LOCATIONS") else []
+CLIENT_EXCLUDED_LOCATIONS = os.environ.get("COSMOS_CLIENT_EXCLUDED_LOCATIONS", "").split(",") if os.environ.get("COSMOS_CLIENT_EXCLUDED_LOCATIONS") else []
+REQUEST_EXCLUDED_LOCATIONS = os.environ.get("COSMOS_REQUEST_EXCLUDED_LOCATIONS", "").split(",") if os.environ.get("COSMOS_REQUEST_EXCLUDED_LOCATIONS") else []
+COSMOS_PROXY_URI = os.environ.get("COSMOS_PROXY_URI", "0.0.0.0")
+COSMOS_URI = os.environ.get("COSMOS_URI", "")
+COSMOS_KEY = os.environ.get("COSMOS_KEY", "")
 COSMOS_CREDENTIAL = COSMOS_KEY if COSMOS_KEY else DefaultAzureCredential()
-COSMOS_CONTAINER = "scale_cont"
-COSMOS_DATABASE = "scale_db"
-USER_AGENT_PREFIX = ""
-LOG_LEVEL = logging.DEBUG
-APP_INSIGHTS_CONNECTION_STRING = ""
-CIRCUIT_BREAKER_ENABLED = False
-USE_MULTIPLE_WRITABLE_LOCATIONS = False
-CONCURRENT_REQUESTS = 100
-CONCURRENT_QUERIES = 2
-PARTITION_KEY = "id" # id or pk
-NUMBER_OF_LOGICAL_PARTITIONS = 10000
-THROUGHPUT = 1000000
+COSMOS_CONTAINER = os.environ.get("COSMOS_CONTAINER", "scale_cont")
+COSMOS_DATABASE = os.environ.get("COSMOS_DATABASE", "scale_db")
+USER_AGENT_PREFIX = os.environ.get("COSMOS_USER_AGENT_PREFIX", "")
+LOG_LEVEL = getattr(logging, os.environ.get("COSMOS_LOG_LEVEL", "DEBUG"), logging.DEBUG)
+APP_INSIGHTS_CONNECTION_STRING = os.environ.get("APP_INSIGHTS_CONNECTION_STRING", "")
+CIRCUIT_BREAKER_ENABLED = os.environ.get("AZURE_COSMOS_ENABLE_CIRCUIT_BREAKER", "false").lower() == "true"
+USE_MULTIPLE_WRITABLE_LOCATIONS = os.environ.get("COSMOS_USE_MULTIPLE_WRITABLE_LOCATIONS", "false").lower() == "true"
+CONCURRENT_REQUESTS = int(os.environ.get("COSMOS_CONCURRENT_REQUESTS", "100"))
+CONCURRENT_QUERIES = int(os.environ.get("COSMOS_CONCURRENT_QUERIES", "2"))
+PARTITION_KEY = os.environ.get("COSMOS_PARTITION_KEY", "id")
+NUMBER_OF_LOGICAL_PARTITIONS = int(os.environ.get("COSMOS_NUMBER_OF_LOGICAL_PARTITIONS", "10000"))
+THROUGHPUT = int(os.environ.get("COSMOS_THROUGHPUT", "1000000"))
