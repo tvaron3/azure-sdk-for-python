@@ -133,13 +133,18 @@ class PerfReporter:
             return
 
         from azure.cosmos import CosmosClient
-        from azure.identity import DefaultAzureCredential
 
         endpoint = self._config["results_endpoint"]
         if not endpoint:
             raise ValueError("RESULTS_COSMOS_URI is not set")
 
-        credential = DefaultAzureCredential()
+        key = os.environ.get("RESULTS_COSMOS_KEY", "")
+        if key:
+            credential = key
+        else:
+            from azure.identity import DefaultAzureCredential
+            credential = DefaultAzureCredential()
+
         self._client = CosmosClient(endpoint, credential)
         db = self._client.get_database_client(self._config["results_database"])
         self._container = db.get_container_client(self._config["results_container"])
