@@ -171,6 +171,12 @@ class PerfReporter:
             os.environ.get("COSMOS_USE_MULTIPLE_WRITABLE_LOCATIONS", "false").lower()
             == "true"
         )
+        proxy_enabled = (
+            os.environ.get("WORKLOAD_USE_PROXY", "false").lower() == "true"
+        )
+        skip_close = (
+            os.environ.get("WORKLOAD_SKIP_CLOSE", "false").lower() == "true"
+        )
 
         summaries, errors = self._stats.drain_all()
         for s in summaries:
@@ -202,6 +208,8 @@ class PerfReporter:
                 "config_excluded_regions": excluded,
                 "config_ppcb_enabled": ppcb,
                 "config_multi_write_enabled": multi_write,
+                "config_proxy_enabled": proxy_enabled,
+                "config_skip_close": skip_close,
             }
             try:
                 self._container.upsert_item(doc)
