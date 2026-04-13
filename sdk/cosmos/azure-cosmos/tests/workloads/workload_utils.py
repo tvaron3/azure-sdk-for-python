@@ -1,9 +1,9 @@
 # The MIT License (MIT)
 # Copyright (c) Microsoft Corporation. All rights reserved.
 import asyncio
+import logging
 import os
 import random
-import sys
 import time
 import traceback
 import uuid
@@ -27,6 +27,58 @@ _REQUIRED_ATTRIBUTES = [
     "duration",
 ]
 
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _extra_kwargs(excluded_locations):
+    """Build optional kwargs for excluded_locations."""
+    return {"excluded_locations": excluded_locations} if excluded_locations else {}
+
+
+def _record_error(stats, operation, error):
+    """Extract Cosmos status codes and record the error in stats."""
+    if not stats:
+        return
+    status_code = sub_status_code = None
+    if isinstance(error, CosmosHttpResponseError):
+        status_code = error.status_code
+        sub_status_code = getattr(error, "sub_status", None)
+    stats.record_error(
+        operation, str(error), traceback.format_exc(), status_code, sub_status_code
+    )
+
+
+def _timed_call(op_name, stats, fn, *args, **kwargs):
+    """Call *fn* synchronously with timing and error recording."""
+    start = time.perf_counter_ns()
+    try:
+        result = fn(*args, **kwargs)
+        if stats:
+            stats.record(op_name, (time.perf_counter_ns() - start) / 1_000_000)
+        return result
+    except Exception as e:
+        _record_error(stats, op_name, e)
+        raise
+
+
+async def _timed_call_async(op_name, stats, coro):
+    """Await *coro* with timing and error recording."""
+    start = time.perf_counter_ns()
+    try:
+        result = await coro
+        if stats:
+            stats.record(op_name, (time.perf_counter_ns() - start) / 1_000_000)
+        return result
+    except Exception as e:
+        _record_error(stats, op_name, e)
+        raise
+
+
+# ---------------------------------------------------------------------------
+# Item generation
+# ---------------------------------------------------------------------------
 
 def get_user_agent(client_id):
     prefix = USER_AGENT_PREFIX + "-" if USER_AGENT_PREFIX else ""
@@ -68,76 +120,37 @@ def _get_upsert_item():
     return create_random_item() if random.random() < 0.1 else get_existing_random_item()
 
 
-def _record_error(stats, operation, error):
-    """Extract Cosmos status codes and record the error in stats."""
-    if not stats:
-        return
-    status_code = sub_status_code = None
-    if isinstance(error, CosmosHttpResponseError):
-        status_code = error.status_code
-        sub_status_code = getattr(error, "sub_status", None)
-    stats.record_error(
-        operation, str(error), traceback.format_exc(), status_code, sub_status_code
-    )
-
+# ---------------------------------------------------------------------------
+# Sync operations
+# ---------------------------------------------------------------------------
 
 def upsert_item(container, excluded_locations, num_upserts, stats=None):
-    item = _get_upsert_item()
+    extra = _extra_kwargs(excluded_locations)
     for _ in range(num_upserts):
-        start = time.perf_counter_ns()
-        try:
-            if excluded_locations:
-                container.upsert_item(
-                    item,
-                    etag=None,
-                    match_condition=None,
-                    excluded_locations=excluded_locations,
-                )
-            else:
-                container.upsert_item(item, etag=None, match_condition=None)
-            if stats:
-                stats.record("UpsertItem", (time.perf_counter_ns() - start) / 1_000_000)
-        except Exception as e:
-            if stats:
-                _record_error(stats, "UpsertItem", e)
-            raise
+        item = _get_upsert_item()
+        _timed_call(
+            "UpsertItem", stats,
+            container.upsert_item, item, etag=None, match_condition=None, **extra,
+        )
 
 
 def read_item(container, excluded_locations, num_reads, stats=None):
+    extra = _extra_kwargs(excluded_locations)
     for _ in range(num_reads):
         item = get_existing_random_item()
-        start = time.perf_counter_ns()
-        try:
-            if excluded_locations:
-                container.read_item(
-                    item["id"],
-                    item[PARTITION_KEY],
-                    etag=None,
-                    match_condition=None,
-                    excluded_locations=excluded_locations,
-                )
-            else:
-                container.read_item(
-                    item["id"], item[PARTITION_KEY], etag=None, match_condition=None
-                )
-            if stats:
-                stats.record("ReadItem", (time.perf_counter_ns() - start) / 1_000_000)
-        except Exception as e:
-            if stats:
-                _record_error(stats, "ReadItem", e)
-            raise
+        _timed_call(
+            "ReadItem", stats,
+            container.read_item, item["id"], item[PARTITION_KEY],
+            etag=None, match_condition=None, **extra,
+        )
 
 
 def query_items(container, excluded_locations, num_queries, stats=None):
+    extra = _extra_kwargs(excluded_locations)
     for _ in range(num_queries):
-        perform_query(container, excluded_locations, stats)
+        random_item = get_existing_random_item()
 
-
-def perform_query(container, excluded_locations, stats=None):
-    random_item = get_existing_random_item()
-    start = time.perf_counter_ns()
-    try:
-        if excluded_locations:
+        def _do_query():
             results = container.query_items(
                 query="SELECT * FROM c where c.id=@id and c.pk=@pk",
                 parameters=[
@@ -145,145 +158,75 @@ def perform_query(container, excluded_locations, stats=None):
                     {"name": "@pk", "value": random_item["pk"]},
                 ],
                 partition_key=random_item[PARTITION_KEY],
-                excluded_locations=excluded_locations,
+                **extra,
             )
-        else:
-            results = container.query_items(
-                query="SELECT * FROM c where c.id=@id and c.pk=@pk",
-                parameters=[
-                    {"name": "@id", "value": random_item["id"]},
-                    {"name": "@pk", "value": random_item["pk"]},
-                ],
-                partition_key=random_item[PARTITION_KEY],
-            )
-        items = [item for item in results]
-        if stats:
-            stats.record("QueryItems", (time.perf_counter_ns() - start) / 1_000_000)
-    except Exception as e:
-        if stats:
-            _record_error(stats, "QueryItems", e)
-        raise
+            return [item for item in results]
+
+        _timed_call("QueryItems", stats, _do_query)
 
 
-async def _timed_upsert_async(container, item, excluded_locations, stats):
-    """Single async upsert with timing and error tracking."""
-    start = time.perf_counter_ns()
-    try:
-        if excluded_locations:
-            await container.upsert_item(
-                item,
-                etag=None,
-                match_condition=None,
-                excluded_locations=excluded_locations,
-            )
-        else:
-            await container.upsert_item(item, etag=None, match_condition=None)
-        if stats:
-            stats.record("UpsertItem", (time.perf_counter_ns() - start) / 1_000_000)
-    except Exception as e:
-        if stats:
-            _record_error(stats, "UpsertItem", e)
-        raise
+# ---------------------------------------------------------------------------
+# Async operations
+# ---------------------------------------------------------------------------
 
-
-async def _timed_read_async(container, item, excluded_locations, stats):
-    """Single async read with timing and error tracking."""
-    start = time.perf_counter_ns()
-    try:
-        if excluded_locations:
-            await container.read_item(
-                item["id"],
-                item[PARTITION_KEY],
-                etag=None,
-                match_condition=None,
-                excluded_locations=excluded_locations,
-            )
-        else:
-            await container.read_item(
-                item["id"], item[PARTITION_KEY], etag=None, match_condition=None
-            )
-        if stats:
-            stats.record("ReadItem", (time.perf_counter_ns() - start) / 1_000_000)
-    except Exception as e:
-        if stats:
-            _record_error(stats, "ReadItem", e)
-        raise
-
-
-async def _timed_query_async(container, random_item, excluded_locations, stats):
-    """Single async query with timing and error tracking."""
-    start = time.perf_counter_ns()
-    try:
-        if excluded_locations:
-            results = container.query_items(
-                query="SELECT * FROM c where c.id=@id and c.pk=@pk",
-                parameters=[
-                    {"name": "@id", "value": random_item["id"]},
-                    {"name": "@pk", "value": random_item["pk"]},
-                ],
-                partition_key=random_item[PARTITION_KEY],
-                excluded_locations=excluded_locations,
-            )
-        else:
-            results = container.query_items(
-                query="SELECT * FROM c where c.id=@id and c.pk=@pk",
-                parameters=[
-                    {"name": "@id", "value": random_item["id"]},
-                    {"name": "@pk", "value": random_item["pk"]},
-                ],
-                partition_key=random_item[PARTITION_KEY],
-            )
-        items = [item async for item in results]
-        if stats:
-            stats.record("QueryItems", (time.perf_counter_ns() - start) / 1_000_000)
-    except Exception as e:
-        if stats:
-            _record_error(stats, "QueryItems", e)
-        raise
-
-
-async def upsert_item_concurrently(
-    container, excluded_locations, num_upserts, stats=None
-):
+async def upsert_item_concurrently(container, excluded_locations, num_upserts, stats=None):
+    extra = _extra_kwargs(excluded_locations)
     tasks = []
     for _ in range(num_upserts):
         item = _get_upsert_item()
-        tasks.append(_timed_upsert_async(container, item, excluded_locations, stats))
+        coro = container.upsert_item(item, etag=None, match_condition=None, **extra)
+        tasks.append(_timed_call_async("UpsertItem", stats, coro))
     await asyncio.gather(*tasks)
 
 
 async def read_item_concurrently(container, excluded_locations, num_reads, stats=None):
+    extra = _extra_kwargs(excluded_locations)
     tasks = []
     for _ in range(num_reads):
         item = get_existing_random_item()
-        tasks.append(_timed_read_async(container, item, excluded_locations, stats))
+        coro = container.read_item(
+            item["id"], item[PARTITION_KEY], etag=None, match_condition=None, **extra,
+        )
+        tasks.append(_timed_call_async("ReadItem", stats, coro))
     await asyncio.gather(*tasks)
 
 
-async def query_items_concurrently(
-    container, excluded_locations, num_queries, stats=None
-):
+async def query_items_concurrently(container, excluded_locations, num_queries, stats=None):
+    extra = _extra_kwargs(excluded_locations)
     tasks = []
     for _ in range(num_queries):
         random_item = get_existing_random_item()
-        tasks.append(
-            _timed_query_async(container, random_item, excluded_locations, stats)
-        )
+
+        async def _do_query(ri=random_item):
+            results = container.query_items(
+                query="SELECT * FROM c where c.id=@id and c.pk=@pk",
+                parameters=[
+                    {"name": "@id", "value": ri["id"]},
+                    {"name": "@pk", "value": ri["pk"]},
+                ],
+                partition_key=ri[PARTITION_KEY],
+                **extra,
+            )
+            return [item async for item in results]
+
+        tasks.append(_timed_call_async("QueryItems", stats, _do_query()))
     await asyncio.gather(*tasks)
 
+
+# ---------------------------------------------------------------------------
+# Session / logging
+# ---------------------------------------------------------------------------
 
 def create_custom_session():
     proxied_connector = ProxiedTCPConnector(
         proxy_host=COSMOS_PROXY_URI,
         proxy_port=5100,
-        limit=100,  # Max total open connections
-        limit_per_host=10,  # Max per Cosmos DB host
-        keepalive_timeout=30,  # Keep-alive duration for idle connections
+        limit=100,
+        limit_per_host=10,
+        keepalive_timeout=30,
         enable_cleanup_closed=True,
-    )  # Helpful for TLS/FIN issues
-
-    session = ClientSession(connector=proxied_connector)
-    return session
+    )
+    return ClientSession(connector=proxied_connector)
 
 
 def create_logger(file_name):
@@ -295,16 +238,12 @@ def create_logger(file_name):
             connection_string=APP_INSIGHTS_CONNECTION_STRING,
         )
     prefix = os.path.splitext(file_name)[0] + "-" + str(os.getpid())
-    # Create a rotating file handler
     handler = RotatingFileHandler(
         "log-" + get_user_agent(prefix) + ".log",
         maxBytes=1024 * 1024 * 10,  # 10 mb
         backupCount=5,
     )
     logger.setLevel(LOG_LEVEL)
-    # create filters for the logger handler to reduce the noise
-    workload_logger_filter = WorkloadLoggerFilter()
-    # handler.addFilter(workload_logger_filter)
     logger.addHandler(handler)
     return prefix, logger
 
@@ -312,7 +251,6 @@ def create_logger(file_name):
 def create_inner_logger(file_name="internal_logger_tues"):
     logger = logging.getLogger("internal_requests")
     prefix = os.path.splitext(file_name)[0] + "-" + str(os.getpid())
-    # Create a rotating file handler
     handler = RotatingFileHandler(
         "log-" + file_name + ".log",
         maxBytes=1024 * 1024 * 10,  # 10 mb
@@ -331,21 +269,17 @@ class WorkloadLoggerFilter(logging.Filter):
                 if request_url_index == -1 and response_status_index == -1:
                     return True
         if all(hasattr(record, attr) for attr in _REQUIRED_ATTRIBUTES):
-            # Check the conditions
-            # Check database account reads
             if (
                 record.resource_type == "databaseaccount"
                 and record.verb == "GET"
                 and record.operation_type == "Read"
             ):
                 return True
-            # Check if there is an error and omit noisy errors
             if record.status_code >= 400 and not (
                 record.status_code in _NOISY_ERRORS
                 and record.sub_status_code in _NOISY_SUB_STATUS_CODES
             ):
                 return True
-            # Check if the latency (duration) was above 1000 ms
             if record.duration >= 1000:
                 return True
         return False
