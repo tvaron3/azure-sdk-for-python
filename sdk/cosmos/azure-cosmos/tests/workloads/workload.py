@@ -171,10 +171,21 @@ def run_workload_sync(client_id, client_logger):
             reporter.stop()
 
 
+async def run_multi_client_async(prefix, client_logger):
+    """Spawn multiple async clients in a single process."""
+    tasks = []
+    for i in range(WORKLOAD_NUM_CLIENTS):
+        client_id = f"{prefix}-c{i}"
+        tasks.append(run_workload_async(client_id, client_logger))
+    await asyncio.gather(*tasks)
+
+
 if __name__ == "__main__":
     file_name = os.path.basename(__file__)
     prefix, logger = create_logger(file_name)
     if WORKLOAD_USE_SYNC:
         run_workload_sync(prefix, logger)
+    elif WORKLOAD_NUM_CLIENTS > 1:
+        asyncio.run(run_multi_client_async(prefix, logger))
     else:
         asyncio.run(run_workload_async(prefix, logger))
