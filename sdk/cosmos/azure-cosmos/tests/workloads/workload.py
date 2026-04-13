@@ -16,7 +16,7 @@ import time
 
 from azure.cosmos.aio import CosmosClient as AsyncClient
 from azure.cosmos import CosmosClient as SyncClient, documents
-from azure.core.pipeline.transport._aiohttp import AioHttpTransport
+from azure.core.pipeline.transport import AioHttpTransport
 
 from workload_utils import *
 from workload_configs import *
@@ -108,6 +108,9 @@ async def run_workload_async(client_id, client_logger):
 
 def run_workload_sync(client_id, client_logger):
     """Sync workload loop — used when WORKLOAD_USE_SYNC=true."""
+    if WORKLOAD_USE_PROXY:
+        raise RuntimeError("Proxy mode is not supported with sync client. "
+                           "Set WORKLOAD_USE_SYNC=false or WORKLOAD_USE_PROXY=false.")
     ops = WORKLOAD_OPERATIONS
 
     stats = None

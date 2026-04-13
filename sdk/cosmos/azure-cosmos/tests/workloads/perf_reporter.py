@@ -73,6 +73,7 @@ class PerfReporter:
         self._config = config
         self._stop_event = threading.Event()
         self._thread = None
+        self._flush_lock = threading.Lock()
         self._client = None
         self._container = None
         self._hostname = socket.gethostname()
@@ -96,12 +97,16 @@ class PerfReporter:
         self._stop_event.set()
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=30)
-        # Final flush
-        try:
-            self._ensure_container()
-            self._flush()
-        except Exception as e:
-            logger.warning("PerfReporter final flush failed: %s", e)
+        # Final flush — only if background thread has stopped to avoid concurrent writes
+        if self._thread and self._thread.is_alive():
+            logger.warning("PerfReporter thread still alive after join timeout, skipping final flush")
+        else:
+            try:
+                with self._flush_lock:
+                    self._ensure_container()
+                    self._flush()
+            except Exception as e:
+                logger.warning("PerfReporter final flush failed: %s", e)
         if self._client:
             try:
                 self._client.close()
@@ -123,7 +128,8 @@ class PerfReporter:
 
         while not self._stop_event.wait(timeout=self._config["report_interval"]):
             try:
-                self._flush()
+                with self._flush_lock:
+                    self._flush()
             except Exception as e:
                 logger.warning("PerfReporter flush failed: %s", e)
 
