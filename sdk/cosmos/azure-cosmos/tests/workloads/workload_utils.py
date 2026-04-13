@@ -244,6 +244,8 @@ def create_logger(file_name):
         backupCount=5,
     )
     logger.setLevel(LOG_LEVEL)
+    workload_logger_filter = WorkloadLoggerFilter()
+    handler.addFilter(workload_logger_filter)
     logger.addHandler(handler)
     return prefix, logger
 
