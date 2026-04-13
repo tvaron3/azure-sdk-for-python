@@ -63,11 +63,11 @@ def _timed_call(op_name, stats, fn, *args, **kwargs):
         raise
 
 
-async def _timed_call_async(op_name, stats, coro):
-    """Await *coro* with timing and error recording."""
+async def _timed_call_async(op_name, stats, coroutine):
+    """Await *coroutine* with timing and error recording."""
     start = time.perf_counter_ns()
     try:
-        result = await coro
+        result = await coroutine
         if stats:
             stats.record(op_name, (time.perf_counter_ns() - start) / 1_000_000)
         return result
@@ -174,8 +174,8 @@ async def upsert_item_concurrently(container, excluded_locations, num_upserts, s
     tasks = []
     for _ in range(num_upserts):
         item = _get_upsert_item()
-        coro = container.upsert_item(item, etag=None, match_condition=None, **extra)
-        tasks.append(_timed_call_async("UpsertItem", stats, coro))
+        awaitable = container.upsert_item(item, etag=None, match_condition=None, **extra)
+        tasks.append(_timed_call_async("UpsertItem", stats, awaitable))
     await asyncio.gather(*tasks)
 
 
@@ -184,10 +184,10 @@ async def read_item_concurrently(container, excluded_locations, num_reads, stats
     tasks = []
     for _ in range(num_reads):
         item = get_existing_random_item()
-        coro = container.read_item(
+        awaitable = container.read_item(
             item["id"], item[PARTITION_KEY], etag=None, match_condition=None, **extra,
         )
-        tasks.append(_timed_call_async("ReadItem", stats, coro))
+        tasks.append(_timed_call_async("ReadItem", stats, awaitable))
     await asyncio.gather(*tasks)
 
 
