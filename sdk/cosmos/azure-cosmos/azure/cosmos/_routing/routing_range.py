@@ -27,6 +27,31 @@ import binascii
 import json
 
 
+from collections import namedtuple
+
+_PKRangeBase = namedtuple('PKRange', ['id', 'minInclusive', 'maxExclusive', 'parents'])
+
+
+class PKRange(_PKRangeBase):
+    """Compact partition key range with dict-compatible access."""
+    __slots__ = ()
+
+    def __getitem__(self, key):
+        try:
+            return getattr(self, key)
+        except AttributeError:
+            raise KeyError(key)
+
+    def get(self, key, default=None):
+        return getattr(self, key, default)
+
+    def __contains__(self, key):
+        return key in self._fields
+
+    def items(self):
+        return zip(self._fields, self)
+
+
 class PartitionKeyRange(object):
     """Partition Key Range Constants"""
 

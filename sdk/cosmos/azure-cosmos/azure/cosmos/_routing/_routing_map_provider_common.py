@@ -209,7 +209,11 @@ def process_fetched_ranges(
                 next_unresolved.append(r)
                 continue
 
-            range_tuples.append((r, range_info))
+            range_tuples.append((PKRange(
+                id=r[PartitionKeyRange.Id],
+                minInclusive=r[PartitionKeyRange.MinInclusive],
+                maxExclusive=r[PartitionKeyRange.MaxExclusive],
+                parents=r.get(PartitionKeyRange.Parents)), range_info))
             known_range_info_by_id[r[PartitionKeyRange.Id]] = range_info
             progress_made = True
 

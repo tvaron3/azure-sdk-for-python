@@ -6,7 +6,7 @@ import unittest
 
 import pytest
 
-from azure.cosmos._routing.routing_range import Range
+from azure.cosmos._routing.routing_range import Range, PKRange
 from azure.cosmos._routing.collection_routing_map import CollectionRoutingMap
 from azure.cosmos._routing.routing_map_provider import (
     PartitionKeyRangeCache,
@@ -73,6 +73,30 @@ class TestSharedPartitionKeyRangeCache(unittest.TestCase):
         cache1.clear_cache()
         self.assertNotIn("coll1", cache1._collection_routing_map_by_item)
         self.assertIn("coll2", cache2._collection_routing_map_by_item)
+
+
+    def test_pkrange_dict_access(self):
+        """PKRange supports dict-style [key] access."""
+        pkr = PKRange(id="1", minInclusive="00", maxExclusive="FF", parents=["0"])
+        self.assertEqual(pkr["id"], "1")
+        self.assertEqual(pkr["minInclusive"], "00")
+        self.assertEqual(pkr.get("parents"), ["0"])
+        self.assertEqual(pkr.get("_rid", "default"), "default")
+        self.assertIn("id", pkr)
+        self.assertNotIn("_rid", pkr)
+
+    def test_pkrange_in_collection_routing_map(self):
+        """CollectionRoutingMap works with PKRange namedtuples."""
+        pk_ranges = [
+            PKRange(id="0", minInclusive="", maxExclusive="80", parents=None),
+            PKRange(id="1", minInclusive="80", maxExclusive="FF", parents=None),
+        ]
+        crm = CollectionRoutingMap.CompleteRoutingMap(
+            [(r, True) for r in pk_ranges], "test"
+        )
+        self.assertIsNotNone(crm)
+        overlapping = crm.get_overlapping_ranges(Range("", "FF", True, False))
+        self.assertEqual(len(overlapping), 2)
 
     def test_range_has_slots(self):
         r = Range("00", "FF", True, False)
