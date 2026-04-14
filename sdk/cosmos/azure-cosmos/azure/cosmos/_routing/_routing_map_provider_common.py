@@ -187,7 +187,7 @@ def process_fetched_ranges(
     # Incremental update -- merge deltas into the existing map.
     # Resolve parent chains transitively within this single delta so cascading
     # splits (A->B+C and B->D+E in one payload) can be merged incrementally.
-    range_tuples: List[Tuple[Dict[str, Any], Any]] = []
+    range_tuples: List[Tuple[Any, Any]] = []
     known_range_info_by_id = {
         pkr_id: pkr_tuple[1]
         for pkr_id, pkr_tuple in previous_routing_map._rangeById.items()  # pylint: disable=protected-access
