@@ -34,6 +34,7 @@ from .. import _base, http_constants
 from .collection_routing_map import CollectionRoutingMap, _build_routing_map_from_ranges
 from . import routing_range
 from .routing_range import (
+    PKRange,
     PartitionKeyRange,
     _is_sorted_and_non_overlapping,
     _subtract_range,

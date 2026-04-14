@@ -1719,6 +1719,7 @@
       "filename": "sdk/cosmos/azure-cosmos/**",
       "words": [
         "colls",
+        "pkrange",
         "pkranges",
         "Upserts",
         "sprocs",

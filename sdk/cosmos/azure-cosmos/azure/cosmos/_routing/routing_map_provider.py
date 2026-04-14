@@ -76,6 +76,11 @@ class PartitionKeyRangeCache(object):
                 _shared_routing_map_cache[self._endpoint] = {}
             self._collection_routing_map_by_item = _shared_routing_map_cache[self._endpoint]
 
+        # A lock to control access to the locks dictionary itself
+        self._locks_lock = threading.Lock()
+        # A dictionary to hold a lock for each collection ID
+        self._collection_locks: Dict[str, threading.Lock] = {}
+
     def clear_cache(self):
         """Clear the shared routing map cache for this endpoint."""
         with _shared_cache_lock:
@@ -83,10 +88,8 @@ class PartitionKeyRangeCache(object):
                 _shared_routing_map_cache[self._endpoint] = {}
             self._collection_routing_map_by_item = _shared_routing_map_cache.get(self._endpoint, {})
 
-        # A lock to control access to the locks dictionary itself
         self._locks_lock = threading.Lock()
-        # A dictionary to hold a lock for each collection ID
-        self._collection_locks: Dict[str, threading.Lock] = {}
+        self._collection_locks = {}
 
     def _get_lock_for_collection(self, collection_id: str) -> threading.Lock:
 

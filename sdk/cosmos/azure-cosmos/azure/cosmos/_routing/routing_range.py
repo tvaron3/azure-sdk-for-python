@@ -29,7 +29,7 @@ import json
 
 from collections import namedtuple
 
-_PKRangeBase = namedtuple('PKRange', ['id', 'minInclusive', 'maxExclusive', 'parents'])
+_PKRangeBase = namedtuple('_PKRangeBase', ['id', 'minInclusive', 'maxExclusive', 'parents'])
 
 
 class PKRange(_PKRangeBase):
@@ -39,8 +39,8 @@ class PKRange(_PKRangeBase):
     def __getitem__(self, key):
         try:
             return getattr(self, key)
-        except AttributeError:
-            raise KeyError(key)
+        except AttributeError as exc:
+            raise KeyError(key) from exc
 
     def get(self, key, default=None):
         return getattr(self, key, default)

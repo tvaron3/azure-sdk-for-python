@@ -79,6 +79,8 @@ class PartitionKeyRangeCache(object):
             self._collection_routing_map_by_item = _shared_routing_map_cache[self._endpoint]
         # A lock to control access to the locks dictionary itself
         self._locks_lock = asyncio.Lock()
+        # A dictionary to hold a lock for each collection ID
+        self._collection_locks: Dict[str, asyncio.Lock] = {}
 
     def clear_cache(self):
         """Clear the shared routing map cache for this endpoint."""
@@ -87,8 +89,7 @@ class PartitionKeyRangeCache(object):
                 _shared_routing_map_cache[self._endpoint] = {}
             self._collection_routing_map_by_item = _shared_routing_map_cache.get(self._endpoint, {})
 
-        # A dictionary to hold a lock for each collection ID
-        self._collection_locks: Dict[str, asyncio.Lock] = {}
+        self._collection_locks = {}
 
     async def _get_lock_for_collection(self, collection_id: str) -> asyncio.Lock:
         """Safely gets or creates a lock for a given collection ID.
