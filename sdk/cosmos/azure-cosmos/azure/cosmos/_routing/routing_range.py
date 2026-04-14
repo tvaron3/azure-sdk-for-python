@@ -39,6 +39,8 @@ class PartitionKeyRange(object):
 class Range(object):
     """description of class"""
 
+    __slots__ = ('min', 'max', 'isMinInclusive', 'isMaxInclusive')
+
     MinPath = "min"
     MaxPath = "max"
     IsMinInclusivePath = "isMinInclusive"
@@ -50,8 +52,8 @@ class Range(object):
         if range_max is None:
             raise ValueError("max is missing")
 
-        self.min = range_min.upper()
-        self.max = range_max.upper()
+        self.min = range_min if range_min == range_min.upper() else range_min.upper()
+        self.max = range_max if range_max == range_max.upper() else range_max.upper()
         self.isMinInclusive = isMinInclusive
         self.isMaxInclusive = isMaxInclusive
 

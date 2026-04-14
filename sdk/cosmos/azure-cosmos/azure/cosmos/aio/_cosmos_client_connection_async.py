@@ -3495,7 +3495,7 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
             return
 
         # Fallback to full refresh when targeted refresh fails transiently.
-        self._routing_map_provider = SmartRoutingMapProvider(self)
+        self._routing_map_provider.clear_cache()
 
     async def _refresh_container_properties_cache(self, container_link: str):
         # If container properties cache is stale, refresh it by reading the container.

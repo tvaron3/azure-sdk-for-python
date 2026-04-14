@@ -40,6 +40,11 @@ from ._routing_map_provider_common import (
 
 if TYPE_CHECKING:
     from .._cosmos_client_connection import CosmosClientConnection
+
+# Shared routing map cache across all clients targeting the same endpoint.
+_shared_routing_map_cache: dict = {}
+_shared_cache_lock = threading.Lock()
+
 # pylint: disable=protected-access, line-too-long
 
 
@@ -63,9 +68,21 @@ class PartitionKeyRangeCache(object):
         """
 
         self._document_client = client
+        self._endpoint = getattr(client, 'url_connection', '')
 
-        # keeps the cached collection routing map by collection id
-        self._collection_routing_map_by_item: Dict[str, CollectionRoutingMap] = {}
+        # Share routing map cache across clients with the same endpoint
+        with _shared_cache_lock:
+            if self._endpoint not in _shared_routing_map_cache:
+                _shared_routing_map_cache[self._endpoint] = {}
+            self._collection_routing_map_by_item = _shared_routing_map_cache[self._endpoint]
+
+    def clear_cache(self):
+        """Clear the shared routing map cache for this endpoint."""
+        with _shared_cache_lock:
+            if self._endpoint in _shared_routing_map_cache:
+                _shared_routing_map_cache[self._endpoint] = {}
+            self._collection_routing_map_by_item = _shared_routing_map_cache.get(self._endpoint, {})
+
         # A lock to control access to the locks dictionary itself
         self._locks_lock = threading.Lock()
         # A dictionary to hold a lock for each collection ID
