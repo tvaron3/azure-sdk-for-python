@@ -150,14 +150,14 @@ def query_items(container, excluded_locations, num_queries, stats=None):
     for _ in range(num_queries):
         random_item = get_existing_random_item()
 
-        def _do_query():
+        def _do_query(ri=random_item):
             results = container.query_items(
                 query="SELECT * FROM c where c.id=@id and c.pk=@pk",
                 parameters=[
-                    {"name": "@id", "value": random_item["id"]},
-                    {"name": "@pk", "value": random_item["pk"]},
+                    {"name": "@id", "value": ri["id"]},
+                    {"name": "@pk", "value": ri["pk"]},
                 ],
-                partition_key=random_item[PARTITION_KEY],
+                partition_key=ri[PARTITION_KEY],
                 **extra,
             )
             return [item for item in results]

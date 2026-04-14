@@ -1,3 +1,4 @@
+from collections import deque
 # The MIT License (MIT)
 # Copyright (c) Microsoft Corporation. All rights reserved.
 """Thread-safe per-operation latency histogram and error tracking using HdrHistogram."""
@@ -123,7 +124,7 @@ class Stats:
             self._histograms.clear()
             self._error_counts.clear()
             error_details = self._errors
-            self._errors = []
+            self._errors = deque(maxlen=2000)
             return summaries, error_details
 
     def drain_summaries(self) -> list[dict]:
