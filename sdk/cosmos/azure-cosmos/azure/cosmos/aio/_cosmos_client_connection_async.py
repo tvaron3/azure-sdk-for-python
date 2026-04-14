@@ -3424,8 +3424,8 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
         return partitionKey
 
     def refresh_routing_map_provider(self) -> None:
-        # re-initializes the routing map provider, effectively refreshing the current partition key range cache
-        self._routing_map_provider = SmartRoutingMapProvider(self)
+        # Clear the shared partition key range cache for this endpoint and re-initialize
+        self._routing_map_provider.clear_cache()
 
     async def _refresh_container_properties_cache(self, container_link: str):
         # If container properties cache is stale, refresh it by reading the container.

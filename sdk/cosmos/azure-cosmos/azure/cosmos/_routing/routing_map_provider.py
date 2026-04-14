@@ -23,6 +23,7 @@
 Cosmos database service.
 """
 import logging
+import threading
 from typing import Any, Optional
 
 from .. import _base
@@ -31,6 +32,11 @@ from . import routing_range
 from .routing_range import PartitionKeyRange
 
 _LOGGER = logging.getLogger(__name__)
+
+# Shared routing map cache across all clients targeting the same endpoint.
+# Key: account endpoint URL, Value: dict of collection_id -> CollectionRoutingMap
+_shared_routing_map_cache: dict[str, dict[str, CollectionRoutingMap]] = {}
+_shared_cache_lock = threading.Lock()
 
 
 # pylint: disable=protected-access
@@ -51,9 +57,20 @@ class PartitionKeyRangeCache(object):
         """
 
         self._documentClient = client
+        self._endpoint = getattr(client, 'url_connection', '')
 
-        # keeps the cached collection routing map by collection id
-        self._collection_routing_map_by_item = {}
+        # Share routing map cache across clients with the same endpoint
+        with _shared_cache_lock:
+            if self._endpoint not in _shared_routing_map_cache:
+                _shared_routing_map_cache[self._endpoint] = {}
+            self._collection_routing_map_by_item = _shared_routing_map_cache[self._endpoint]
+
+    def clear_cache(self):
+        """Clear the shared routing map cache for this endpoint."""
+        with _shared_cache_lock:
+            if self._endpoint in _shared_routing_map_cache:
+                _shared_routing_map_cache[self._endpoint] = {}
+            self._collection_routing_map_by_item = _shared_routing_map_cache.get(self._endpoint, {})
 
     def init_collection_routing_map_if_needed(
             self,
