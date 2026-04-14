@@ -23,6 +23,11 @@ def _get_git_sha() -> str:
     return "unknown"
 
 
+def _safe_int_env(name: str, default: int) -> int:
+    """Read an integer from an environment variable with a fallback default."""
+    return _safe_int(os.environ.get(name, str(default)), default)
+
+
 def _safe_int(value: object, default: int) -> int:
     try:
         return int(value)

@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 
 import psutil
 
+from perf_config import _safe_int_env
 from perf_stats import Stats
 
 logger = logging.getLogger(__name__)
@@ -192,7 +193,7 @@ class PerfReporter:
                 "workload_id": self._config["workload_id"],
                 "commit_sha": self._config["commit_sha"],
                 "hostname": self._hostname,
-                "TIMESTAMP": now,
+                "TIMESTAMP": now,  # ALL_CAPS for Rust SDK PerfResults schema compatibility
                 "operation": s["operation"],
                 "count": s["count"],
                 "errors": s["errors"],
@@ -231,7 +232,7 @@ class PerfReporter:
                 "workload_id": self._config["workload_id"],
                 "commit_sha": self._config["commit_sha"],
                 "hostname": self._hostname,
-                "TIMESTAMP": now,
+                "TIMESTAMP": now,  # ALL_CAPS for Rust SDK PerfResults schema compatibility
                 "operation": err["operation"],
                 "error_message": err["error_message"][:2000],
                 "source_message": err["source_message"][:4000],

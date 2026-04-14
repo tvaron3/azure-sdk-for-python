@@ -230,7 +230,6 @@ def create_custom_session():
 
 
 def create_logger(file_name):
-    os.environ["AZURE_COSMOS_ENABLE_CIRCUIT_BREAKER"] = str(CIRCUIT_BREAKER_ENABLED)
     logger = logging.getLogger()
     if APP_INSIGHTS_CONNECTION_STRING:
         configure_azure_monitor(

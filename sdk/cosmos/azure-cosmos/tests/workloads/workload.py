@@ -22,28 +22,27 @@ from workload_utils import *
 from workload_configs import *
 
 
-async def run_workload_async(client_id, client_logger):
+async def run_workload_async(client_id, client_logger, stats=None, reporter=None):
     """Async workload loop — default mode."""
     ops = WORKLOAD_OPERATIONS
     use_proxy = WORKLOAD_USE_PROXY
 
-    stats = None
-    perf_config = None
-    reporter = None
+    owns_reporter = False
+    if stats is None:
+        try:
+            from perf_config import get_perf_config
 
-    try:
-        from perf_config import get_perf_config
+            perf_config = get_perf_config()
+            if perf_config["enabled"] and perf_config["results_endpoint"]:
+                from perf_stats import Stats
+                from perf_reporter import PerfReporter
 
-        perf_config = get_perf_config()
-        if perf_config["enabled"] and perf_config["results_endpoint"]:
-            from perf_stats import Stats
-            from perf_reporter import PerfReporter
-
-            stats = Stats()
-            reporter = PerfReporter(stats, perf_config)
-            reporter.start()
-    except ImportError as e:
-        logging.getLogger(__name__).info("Perf reporting disabled: %s", e)
+                stats = Stats()
+                reporter = PerfReporter(stats, perf_config)
+                reporter.start()
+                owns_reporter = True
+        except ImportError as e:
+            logging.getLogger(__name__).info("Perf reporting disabled: %s", e)
 
     session = None
     transport = None
@@ -64,11 +63,8 @@ async def run_workload_async(client_id, client_logger):
         if USE_MULTIPLE_WRITABLE_LOCATIONS:
             client_kwargs["multiple_write_locations"] = True
 
-        if WORKLOAD_SKIP_CLOSE:
-            # Simulate applications that don't properly close the client
-            client = AsyncClient(COSMOS_URI, COSMOS_CREDENTIAL, **client_kwargs)
-        else:
-            client = AsyncClient(COSMOS_URI, COSMOS_CREDENTIAL, **client_kwargs)
+        client = AsyncClient(COSMOS_URI, COSMOS_CREDENTIAL, **client_kwargs)
+        if not WORKLOAD_SKIP_CLOSE:
             await client.__aenter__()
 
         try:
@@ -97,7 +93,7 @@ async def run_workload_async(client_id, client_logger):
             if not WORKLOAD_SKIP_CLOSE:
                 await client.__aexit__(None, None, None)
     finally:
-        if reporter:
+        if reporter and owns_reporter:
             try:
                 reporter.stop()
             except Exception:
@@ -168,16 +164,40 @@ def run_workload_sync(client_id, client_logger):
                     client_logger.error(e)
     finally:
         if reporter:
-            reporter.stop()
+            try:
+                reporter.stop()
+            except Exception:
+                pass
 
 
 async def run_multi_client_async(prefix, client_logger):
-    """Spawn multiple async clients in a single process."""
-    tasks = []
-    for i in range(WORKLOAD_NUM_CLIENTS):
-        client_id = f"{prefix}-c{i}"
-        tasks.append(run_workload_async(client_id, client_logger))
-    await asyncio.gather(*tasks)
+    """Spawn multiple async clients in a single process with shared metrics."""
+    stats = None
+    reporter = None
+    try:
+        from perf_config import get_perf_config
+        perf_config = get_perf_config()
+        if perf_config["enabled"] and perf_config["results_endpoint"]:
+            from perf_stats import Stats
+            from perf_reporter import PerfReporter
+            stats = Stats()
+            reporter = PerfReporter(stats, perf_config)
+            reporter.start()
+    except ImportError as e:
+        logging.getLogger(__name__).info("Perf reporting disabled: %s", e)
+
+    try:
+        tasks = []
+        for i in range(WORKLOAD_NUM_CLIENTS):
+            client_id = f"{prefix}-c{i}"
+            tasks.append(run_workload_async(client_id, client_logger, stats=stats, reporter=reporter))
+        await asyncio.gather(*tasks)
+    finally:
+        if reporter:
+            try:
+                reporter.stop()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

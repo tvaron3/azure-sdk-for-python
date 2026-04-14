@@ -3,6 +3,7 @@
 # All configuration is driven by environment variables with sensible defaults.
 import logging
 import os
+from perf_config import _safe_int
 
 from azure.identity import DefaultAzureCredential
 
@@ -34,14 +35,14 @@ CIRCUIT_BREAKER_ENABLED = (
 USE_MULTIPLE_WRITABLE_LOCATIONS = (
     os.environ.get("COSMOS_USE_MULTIPLE_WRITABLE_LOCATIONS", "false").lower() == "true"
 )
-CONCURRENT_REQUESTS = int(os.environ.get("COSMOS_CONCURRENT_REQUESTS", "100"))
-CONCURRENT_QUERIES = int(os.environ.get("COSMOS_CONCURRENT_QUERIES", "2"))
-WORKLOAD_NUM_CLIENTS = int(os.environ.get("WORKLOAD_NUM_CLIENTS", "1"))
+CONCURRENT_REQUESTS = _safe_int(os.environ.get("COSMOS_CONCURRENT_REQUESTS", "100"), 100)
+CONCURRENT_QUERIES = _safe_int(os.environ.get("COSMOS_CONCURRENT_QUERIES", "2"), 2)
+WORKLOAD_NUM_CLIENTS = _safe_int(os.environ.get("WORKLOAD_NUM_CLIENTS", "1"), 1)
 PARTITION_KEY = os.environ.get("COSMOS_PARTITION_KEY", "id")
 NUMBER_OF_LOGICAL_PARTITIONS = int(
     os.environ.get("COSMOS_NUMBER_OF_LOGICAL_PARTITIONS", "10000")
 )
-THROUGHPUT = int(os.environ.get("COSMOS_THROUGHPUT", "1000000"))
+THROUGHPUT = _safe_int(os.environ.get("COSMOS_THROUGHPUT", "100000"), 100000)  # For DR drills, set COSMOS_THROUGHPUT=1000000
 
 # Workload behavior
 _VALID_OPERATIONS = {"read", "write", "query"}
