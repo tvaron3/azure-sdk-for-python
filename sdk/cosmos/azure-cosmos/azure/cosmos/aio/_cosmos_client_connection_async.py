@@ -3490,8 +3490,8 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
                     status_code,
                 )
         else:
-            # Full refresh - create a new provider instance. This clears all cached routing maps.
-            self._routing_map_provider = SmartRoutingMapProvider(self)
+            # Full refresh - clear the shared routing map cache for this endpoint.
+            self._routing_map_provider.clear_cache()
             return
 
         # Fallback to full refresh when targeted refresh fails transiently.

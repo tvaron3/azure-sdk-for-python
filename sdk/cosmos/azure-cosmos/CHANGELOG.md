@@ -9,6 +9,7 @@
 #### Bugs Fixed
 
 #### Other Changes
+* Reduced per-client memory overhead when partition-level circuit breaker (PPCB) is enabled by sharing the partition key range routing map cache across CosmosClient instances connected to the same endpoint, and stripping unused fields from cached partition key ranges using compact PKRange namedtuples. See [PR 46297](https://github.com/Azure/azure-sdk-for-python/pull/46297)
 
 ### 4.16.0b2 (2026-04-04)
 

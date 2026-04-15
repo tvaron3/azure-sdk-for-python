@@ -1,0 +1,230 @@
+===== PR #41588 =====
+Title: [Cosmos] Per-Partition Automatic Failover
+Author: simorenoh
+Status: MERGED
+Branch: cosmos-ppaf -> main
+Head SHA: cdfdc0187c9bb706870050bac58aed7618f35ab9
+URL: https://github.com/Azure/azure-sdk-for-python/pull/41588
+
+--- Description ---
+# Per-Partition Automatic Failover
+
+This PR adds the ability for the SDK to utilize per-partition automatic failover as a resiliency mechanism for **write requests in single-write multi-region Cosmos accounts**. Big picture, PPAF allows the SDK to reach out to other regions when the main write region becomes unavailable for a given partition. This means that while the partition is having issues in the main write region, the SDK will be able to route these write requests to one of the available read regions for the account for *write requests targeting that partition*. Once the endpoint is available again, the service will let the SDK know that failing back is now possible (403.3) and the SDK will attempt to return to the main write region in a round-robin fashion through the available regions for the account. Neither preferred regions nor excluded regions play a role in PPAF, since the decision of where the current write region for a partition is located depends entirely on the service. It is also worth noting that enabling PPAF will also enable PPCB.
+
+Unlike PPCB, PPAF is a service feature - that is, it won't work right out the box with just the SDK, but also requires the database account to be configured with the feature. More information on the feature and how to enable it for an account can be found here: https://learn.microsoft.com/azure/cosmos-db/how-to-configure-per-partition-automatic-failover
+
+TLDR: in order use these enhancements, a user will need to have:
+- Have configured an account with PPAF as per the linked document above.
+- A single-write multi-region Cosmos account.
+- More than one region available for their account.
+
+## Design and new classes
+
+### _GlobalPartitionEndpointManagerForPerPartitionAutomaticFailover
+Takes care of the regional routing and partition unavailability tracking when PPAF is enabled by using its own cache of PartitionLevelFailoverInfo objects.
+Instance attributes:
+ - `partition_range_to_failover_info`: mapping of a partition key range to their respective PartitionLevelFailoverInfo object.
+ - `ppaf_thresholds_tracker`: mapping of a partition key range to the number of consecutive errors of a given type
+
+### PartitionLevelFailoverInfo
+Holds the relevant partition level failover information for a partition. This information is used in order to route requests to the next available region based on the known information about its availability.
+Instance attributes:
+ - `unavailable_regional_endpoints`: Set holding the regional endpoints that have been marked as unavailable for this partition.
+ - `current_regional_endpoint`: the current regional endpoint to be used by PPAF requests - stored in order to ensure that requests are properly routed to this region if PPAF is enabled.
+ - `_lock`: To ensure updating logic is thread-safe for a given partition.
+
+### Request flow with PPAF
+
+```mermaid
+flowchart TD
+    A[User sends request] --> B{Is PPAF valid? do we have regions available, is this a write request, is this a multi-write account}
+    
+    B -- No --> C[Use per-partition Circuit Breaker GlobalEndpointManager]
+    
+    B -- Yes --> D{Is PK range info from this request cached?}
+    
+    D -- No --> E[Create new cache entry]
+    E --> F[Use default GlobalEndpointManager to resolve endpoint]
+    
+    D -- Yes --> G{Is current request regional endpoint unavailable?}
+    
+    G -- No --> H[Update partition info with current request endpoint]
+    H --> I[Send request to current endpoint]
+    
+    G -- Yes --> J[Cycle through available endpoints]
+    J --> K{Found available endpoint?}
+    
+    K -- Yes --> L[Update partition info with new endpoint]
+    L --> M[Send request to new endpoint]
+    
+    K -- No --> N[Reset cache entry]
+    N --> O[Use default GlobalEndpointManager to resolve endpoint]
+```
+
+### Difference in behaviors and status codes
+This section covers the behavior for the different status codes that are relevant to PPAF error handling. For some of these, we have a threshold-based approach, that requires 10 consecutive failures (default value can be changed) before performing a partition-level failover, while others will immediately attempt to do a partition-level failover.
+Error codes | Behaviors
+--- | ---
+403.3, 503 | Direct partition-level failover will happen. This behavior aligns with .NET SDK. 503s have had their own policy made.
+408, 500, 502, 504, ServiceResponseErrors | Threshold-based failover logic, we only failover after 10 consecutive exceptions
+404.1002 | Region failover will utilize partition-level failover info from PPAF if it is available, otherwise will have default behavior
+
+## Concerns
+
+Some of the things below have not been tested or done yet, and should be looked at before releasing this feature.
+- Missing work on session token false progress - the [session token container fixes PR] (https://github.com/Azure/azure-sdk-for-python/pull/40366) might be needed as a prerequisite since it fixes much of the session token logic within the SDK.
+- Partition splits can change the range that a given partition key range id or partition key value are reaching out to, and as such might cause an issue with the partition info cache if a split happens while the write partition is in the middle of a failover. We should verify partition split behavior since I'm not 100% certain we refresh the partition key range cache in many situations.
+- Need to verify the configuration sent from the service for an account with PPAF enabled matches the configuration being used in the code - should be a quick check against a live account with the config
+     -  Update: Verifiied that `enablePerPartitionFailoverEnabled` is the correct config from the service.
+- Need to verify diagnostics and logging is doing what it should for supplying PPAF information to our users -> confirmed since we log the different requests failing over
+
+### Additional work to be done
+- [x] Add README entry for all of this
+- [x] Add ability for PPAF to be enabled dynamically -> this was always enabled by default since we update the database account cache with every health check and read the cache to verify if we should enforce the config in the global endpoint manager. checks run every 5 minutes, so it should take at most 5 minutes for the feature to be enabled dynamically.
+- [x] Add retry mechanisms for 408, 502, 503, 504 exceptions based on consecutive request failures
+- [x] Add retry mechanisms for 404.1002 to utilize partition-level failover region as opposed to main failover region if the info is available
+- [x] Add retry mechanisms for ServiceResponseErrors
+
+Eventually I'd like to also add tests with more regions in order to properly test excluded regions -> ideally, we configure an account with 3 regions to more effectively verify multi-region behavior and use excluded regions with greater depth.
+
+Addresses https://github.com/Azure/azure-sdk-for-python/issues/39686
+
+
+--- End Description ---
+
+===== Commits in PR =====
+a47452e sync PPAF
+b8228e7 async changes
+151a2fa Update test_per_partition_automatic_failover_async.py
+b9e0a08 CI fixes
+e4d7046 changelog
+09e7163 broken link
+4e28f66 Update test_location_cache.py
+c5319e8 change PPAF detection logic
+eba6093 Update _global_partition_endpoint_manager_circuit_breaker_core.py
+2ec5c5d Update _global_partition_endpoint_manager_circuit_breaker_core.py
+62d7be0 fix tests and remove environment variable
+b57949d Merge branch 'main' of https://github.com/Azure/azure-sdk-for-python …
+24b8415 fix tests
+9595327 revert excluded locations change
+8911ef5 fix analyze
+25dbeb3 test excluded locations
+d61a9a9 Add different error handling for 503 and 408s, update README
+3f8ac23 Merge branch 'main' into cosmos-ppaf
+f1c69ed mypy, cspell, pylint
+9306d15 remove tag from tests since config is service based
+bd07d83 add threshold-based retries for 408, 5xx errors
+80cc824 Merge branch 'main' into cosmos-ppaf
+2e5838c update constant use, rollback session token PR change
+8b7d181 threshold based retries
+f25b660 Merge branch 'main' into cosmos-ppaf
+d8ed980 Update _base.py
+fcd5c60 cspell, test fixes
+93c76ad Merge branch 'main' into cosmos-ppaf
+467a95d Update _service_unavailable_retry_policy.py
+b9aa01c mypy, pylint
+64f95e3 503 behavior change, use regional contexts
+d05fc5e mypy, pylint, tests
+85b2007 special-casing 503s
+f8fa70a small fix
+e5c5ac5 exclude region tests
+ccd9def session retry tests
+1dccc5d pylint, cspell
+ebf0b0d Merge branch 'main' into cosmos-ppaf
+c2bb93a change errors since 503 is now retried directly
+c3879d8 Update sdk/cosmos/azure-cosmos/README.md
+1d57bf2 address comments
+eec77e7 Update _service_unavailable_retry_policy.py
+4c2bf32 small test updates for 503 behavior
+05654a9 further comments
+f982d21 Update test_per_partition_circuit_breaker_sm_mrr.py
+d9ca7a4 test fixes
+f1dce5d Update test_excluded_locations.py
+1582cf3 small improvement to region-finding
+8f7ec0c pylint
+1c10349 Merge branch 'main' into cosmos-ppaf
+effb6d1 Update _global_partition_endpoint_manager_per_partition_automatic_fai…
+1e773f5 address comments, add threshold lock
+24a44d9 add more comments
+d07610a Merge branch 'main' into cosmos-ppaf
+f984204 Merge branch 'main' into cosmos-ppaf
+c772092 edge cases
+143cf17 Merge branch 'main' into cosmos-ppaf
+ef9f73a Merge branch 'main' into cosmos-ppaf
+3acda24 changes from testing
+9a6b17b pylint
+c3e0035 Merge branch 'main' into cosmos-ppaf
+8f75444 fixes pylint/mypy
+0ccd9bf mypy complaining about assigning str to none
+f4e4d65 testing changes - will roll back later
+4e276e1 Merge branch 'cosmos-ppaf' of https://github.com/Azure/azure-sdk-for-…
+8f87b13 Update _endpoint_discovery_retry_policy.py
+3e1f6be Update _asynchronous_request.py
+42817fc add user agent feature flags
+23f3b0d Merge branch 'main' into cosmos-ppaf
+65f9e01 Update test_per_partition_automatic_failover_async.py
+e15e43d move user agent logic
+0d7e887 sync and async match, remove print statements
+aa3b641 leftover timer
+799f6de Update _retry_utility.py
+36249b4 use constants
+f5cd24b Merge branch 'main' into cosmos-ppaf
+0495c7b pylint
+335e10e Merge branch 'main' into cosmos-ppaf
+2f004b7 Merge branch 'main' into cosmos-ppaf
+8639093 Update CHANGELOG.md
+5b3815f react to comments
+e31d674 Update _retry_utility.py
+e55871c mypy pylint
+0463a3f test fixes
+cdfdc01 add lock to failure additions
+
+===== Files Changed =====
+  sdk/cosmos/azure-cosmos/CHANGELOG.md  (+2 -0)
+  sdk/cosmos/azure-cosmos/README.md  (+5 -0)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_base.py  (+4 -0)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_constants.py  (+26 -1)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_cosmos_client_connection.py  (+7 -4)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_cosmos_http_logging_policy.py  (+1 -1)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_endpoint_discovery_retry_policy.py  (+21 -16)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_global_partition_endpoint_manager_circuit_breaker.py  (+14 -10)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_global_partition_endpoint_manager_circuit_breaker_core.py  (+6 -1)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_global_partition_endpoint_manager_per_partition_automatic_failover.py  (+241 -0)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_location_cache.py  (+2 -2)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_partition_health_tracker.py  (+27 -0)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_retry_utility.py  (+21 -8)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_service_response_retry_policy.py  (+4 -1)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_service_unavailable_retry_policy.py  (+79 -0)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_session_retry_policy.py  (+18 -6)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_synchronized_request.py  (+15 -6)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_timeout_failover_retry_policy.py  (+7 -3)
+  sdk/cosmos/azure-cosmos/azure/cosmos/_utils.py  (+27 -1)
+  sdk/cosmos/azure-cosmos/azure/cosmos/aio/_asynchronous_request.py  (+14 -3)
+  sdk/cosmos/azure-cosmos/azure/cosmos/aio/_cosmos_client_connection_async.py  (+8 -5)
+  sdk/cosmos/azure-cosmos/azure/cosmos/aio/_global_partition_endpoint_manager_circuit_breaker_async.py  (+12 -10)
+  sdk/cosmos/azure-cosmos/azure/cosmos/aio/_global_partition_endpoint_manager_per_partition_automatic_failover_async.py  (+242 -0)
+  sdk/cosmos/azure-cosmos/azure/cosmos/aio/_retry_utility_async.py  (+18 -9)
+  sdk/cosmos/azure-cosmos/azure/cosmos/cosmos_client.py  (+3 -1)
+  sdk/cosmos/azure-cosmos/azure/cosmos/documents.py  (+1 -0)
+  sdk/cosmos/azure-cosmos/docs/ErrorCodesAndRetries.md  (+12 -12)
+  sdk/cosmos/azure-cosmos/pytest.ini  (+1 -0)
+  sdk/cosmos/azure-cosmos/tests/_fault_injection_transport.py  (+87 -13)
+  sdk/cosmos/azure-cosmos/tests/_fault_injection_transport_async.py  (+54 -3)
+  sdk/cosmos/azure-cosmos/tests/test_circuit_breaker_emulator.py  (+4 -0)
+  sdk/cosmos/azure-cosmos/tests/test_circuit_breaker_emulator_async.py  (+4 -0)
+  sdk/cosmos/azure-cosmos/tests/test_excluded_locations.py  (+1 -0)
+  sdk/cosmos/azure-cosmos/tests/test_location_cache.py  (+3 -3)
+  sdk/cosmos/azure-cosmos/tests/test_per_partition_automatic_failover.py  (+279 -0)
+  sdk/cosmos/azure-cosmos/tests/test_per_partition_automatic_failover_async.py  (+263 -0)
+  sdk/cosmos/azure-cosmos/tests/test_per_partition_circuit_breaker_mm.py  (+38 -12)
+  sdk/cosmos/azure-cosmos/tests/test_per_partition_circuit_breaker_mm_async.py  (+20 -11)
+  sdk/cosmos/azure-cosmos/tests/test_per_partition_circuit_breaker_sm_mrr.py  (+12 -3)
+  sdk/cosmos/azure-cosmos/tests/test_per_partition_circuit_breaker_sm_mrr_async.py  (+15 -6)
+  sdk/cosmos/azure-cosmos/tests/test_service_retry_policies_async.py  (+1 -1)
+  sdk/cosmos/azure-cosmos/tests/test_timeout_and_failover_retry_policy.py  (+7 -4)
+  sdk/cosmos/azure-cosmos/tests/test_timeout_and_failover_retry_policy_async.py  (+7 -4)
+  sdk/cosmos/azure-cosmos/tests/workloads/r_w_q_workload.py  (+44 -4)
+  sdk/cosmos/azure-cosmos/tests/workloads/workload_utils.py  (+15 -2)
+  sdk/cosmos/live-platform-matrix.json  (+17 -0)
+
+

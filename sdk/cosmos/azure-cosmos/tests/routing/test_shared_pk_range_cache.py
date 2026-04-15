@@ -58,10 +58,16 @@ class TestSharedPartitionKeyRangeCache(unittest.TestCase):
 
     def test_clear_cache_resets_for_endpoint(self):
         c1 = MockClient("https://account1.documents.azure.com:443/")
+        c2 = MockClient("https://account1.documents.azure.com:443/")
         cache1 = PartitionKeyRangeCache(c1)
+        cache2 = PartitionKeyRangeCache(c2)
+        original_dict = cache1._collection_routing_map_by_item
         cache1._collection_routing_map_by_item["coll1"] = "dummy"
         cache1.clear_cache()
         self.assertNotIn("coll1", cache1._collection_routing_map_by_item)
+        # .clear() preserves the dict identity - all clients still share the same object
+        self.assertIs(cache1._collection_routing_map_by_item, original_dict)
+        self.assertIs(cache2._collection_routing_map_by_item, original_dict)
 
     def test_clear_cache_does_not_affect_other_endpoints(self):
         c1 = MockClient("https://account1.documents.azure.com:443/")
@@ -77,10 +83,10 @@ class TestSharedPartitionKeyRangeCache(unittest.TestCase):
 
     def test_pkrange_dict_access(self):
         """PKRange supports dict-style [key] access."""
-        pkr = PKRange(id="1", minInclusive="00", maxExclusive="FF", parents=["0"])
+        pkr = PKRange(id="1", minInclusive="00", maxExclusive="FF", parents=("0",))
         self.assertEqual(pkr["id"], "1")
         self.assertEqual(pkr["minInclusive"], "00")
-        self.assertEqual(pkr.get("parents"), ["0"])
+        self.assertEqual(pkr.get("parents"), ("0",))
         self.assertEqual(pkr.get("_rid", "default"), "default")
         self.assertIn("id", pkr)
         self.assertNotIn("_rid", pkr)
@@ -88,8 +94,8 @@ class TestSharedPartitionKeyRangeCache(unittest.TestCase):
     def test_pkrange_in_collection_routing_map(self):
         """CollectionRoutingMap works with PKRange namedtuples."""
         pk_ranges = [
-            PKRange(id="0", minInclusive="", maxExclusive="80", parents=None),
-            PKRange(id="1", minInclusive="80", maxExclusive="FF", parents=None),
+            PKRange(id="0", minInclusive="", maxExclusive="80", parents=()),
+            PKRange(id="1", minInclusive="80", maxExclusive="FF", parents=()),
         ]
         crm = CollectionRoutingMap.CompleteRoutingMap(
             [(r, True) for r in pk_ranges], "test"

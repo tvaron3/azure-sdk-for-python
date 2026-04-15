@@ -37,6 +37,8 @@ class PKRange(_PKRangeBase):
     __slots__ = ()
 
     def __getitem__(self, key):
+        if isinstance(key, (int, slice)):
+            return super().__getitem__(key)
         try:
             return getattr(self, key)
         except AttributeError as exc:
@@ -78,8 +80,10 @@ class Range(object):
         if range_max is None:
             raise ValueError("max is missing")
 
-        self.min = range_min if range_min == range_min.upper() else range_min.upper()
-        self.max = range_max if range_max == range_max.upper() else range_max.upper()
+        upper_min = range_min.upper()
+        self.min = range_min if range_min == upper_min else upper_min
+        upper_max = range_max.upper()
+        self.max = range_max if range_max == upper_max else upper_max
         self.isMinInclusive = isMinInclusive
         self.isMaxInclusive = isMaxInclusive
 

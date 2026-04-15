@@ -142,12 +142,12 @@ class TestSharedCacheIntegration(unittest.TestCase):
             # Clear via client1
             self._get_routing_provider(self.client1).clear_cache()
 
-            # Client2 still sees the new (empty) shared cache entry
-            # because clear_cache replaces the dict in _shared_routing_map_cache
-            with _shared_cache_lock:
-                endpoint = getattr(self.client1.client_connection, 'url_connection', '')
-                current_shared = _shared_routing_map_cache.get(endpoint, {})
-            self.assertEqual(len(current_shared), 0)
+            # Both clients still reference the same (now empty) shared dict
+            # because clear_cache uses .clear() to preserve references
+            cache1 = self._get_cache_dict(self.client1)
+            cache2 = self._get_cache_dict(client2)
+            self.assertIs(cache1, cache2, "Both clients should reference the same dict after clear_cache")
+            self.assertEqual(len(cache1), 0)
 
             # Client2 read re-populates
             result = container2.read_item("item-2", partition_key="pk-2")

@@ -82,14 +82,16 @@ class PartitionKeyRangeCache(object):
         self._collection_locks: Dict[str, threading.Lock] = {}
 
     def clear_cache(self):
-        """Clear the shared routing map cache for this endpoint."""
+        """Clear the shared routing map cache for this endpoint.
+
+        Uses in-place .clear() to preserve all client references to the same dict.
+        """
         with _shared_cache_lock:
             if self._endpoint in _shared_routing_map_cache:
-                _shared_routing_map_cache[self._endpoint] = {}
-            self._collection_routing_map_by_item = _shared_routing_map_cache.get(self._endpoint, {})
+                _shared_routing_map_cache[self._endpoint].clear()
 
-        self._locks_lock = threading.Lock()
-        self._collection_locks = {}
+        with self._locks_lock:
+            self._collection_locks.clear()
 
     def _get_lock_for_collection(self, collection_id: str) -> threading.Lock:
 

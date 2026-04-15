@@ -214,7 +214,7 @@ def process_fetched_ranges(
                 id=r[PartitionKeyRange.Id],
                 minInclusive=r[PartitionKeyRange.MinInclusive],
                 maxExclusive=r[PartitionKeyRange.MaxExclusive],
-                parents=r.get(PartitionKeyRange.Parents)), range_info))
+                parents=tuple(r.get(PartitionKeyRange.Parents) or ())), range_info))
             known_range_info_by_id[r[PartitionKeyRange.Id]] = range_info
             progress_made = True
 
