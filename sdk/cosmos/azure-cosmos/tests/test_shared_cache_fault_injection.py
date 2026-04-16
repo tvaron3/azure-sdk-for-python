@@ -36,26 +36,23 @@ class TestSharedCacheFaultInjection(unittest.TestCase):
     host = test_config.TestConfig.host
     master_key = test_config.TestConfig.masterKey
     TEST_DATABASE_ID = test_config.TestConfig.TEST_DATABASE_ID
-    TEST_CONTAINER_ID = "fault-cache-test-" + str(uuid.uuid4())[:8]
+    TEST_CONTAINER_ID = test_config.TestConfig.TEST_MULTI_PARTITION_CONTAINER_ID
 
     @classmethod
     def setUpClass(cls):
         cls.client = CosmosClient(cls.host, cls.master_key)
         cls.db = cls.client.get_database_client(cls.TEST_DATABASE_ID)
-        cls.container = cls.db.create_container_if_not_exists(
-            id=cls.TEST_CONTAINER_ID,
-            partition_key=PartitionKey(path="/pk"),
-        )
+        cls.container = cls.db.get_container_client(test_config.TestConfig.TEST_MULTI_PARTITION_CONTAINER_ID)
         for i in range(10):
             cls.container.upsert_item({"id": f"fi-{i}", "pk": f"pk-{i % 3}", "value": i})
 
     @classmethod
     def tearDownClass(cls):
-        try:
-            cls.db.delete_container(cls.TEST_CONTAINER_ID)
-        except Exception:
-            pass
-        pass  # sync client cleaned up by GC
+        for i in range(10):
+            try:
+                cls.container.delete_item(f"fi-{i}", partition_key=f"pk-{i % 3}")
+            except Exception:
+                pass
 
     def tearDown(self):
         with _shared_cache_lock:

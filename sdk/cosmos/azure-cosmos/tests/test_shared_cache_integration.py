@@ -30,27 +30,25 @@ class TestSharedCacheIntegration(unittest.TestCase):
     host = test_config.TestConfig.host
     master_key = test_config.TestConfig.masterKey
     TEST_DATABASE_ID = test_config.TestConfig.TEST_DATABASE_ID
-    TEST_CONTAINER_ID = "shared-cache-test-" + str(uuid.uuid4())[:8]
+    TEST_CONTAINER_ID = test_config.TestConfig.TEST_MULTI_PARTITION_CONTAINER_ID
 
     @classmethod
     def setUpClass(cls):
         cls.client1 = CosmosClient(cls.host, cls.master_key)
         cls.db = cls.client1.get_database_client(cls.TEST_DATABASE_ID)
-        cls.container = cls.db.create_container_if_not_exists(
-            id=cls.TEST_CONTAINER_ID,
-            partition_key=PartitionKey(path="/pk"),
-        )
+        cls.container = cls.db.get_container_client(test_config.TestConfig.TEST_MULTI_PARTITION_CONTAINER_ID)
         # Seed data
         for i in range(20):
-            cls.container.upsert_item({"id": f"item-{i}", "pk": f"pk-{i % 5}", "value": i})
+            cls.container.upsert_item({"id": f"shared-cache-item-{i}", "pk": f"pk-{i % 5}", "value": i})
 
     @classmethod
     def tearDownClass(cls):
-        try:
-            cls.db.delete_container(cls.TEST_CONTAINER_ID)
-        except Exception:
-            pass
-        pass  # sync client cleaned up by GC
+        # Clean up seeded items
+        for i in range(20):
+            try:
+                cls.container.delete_item(f"shared-cache-item-{i}", partition_key=f"pk-{i % 5}")
+            except Exception:
+                pass
 
     def tearDown(self):
         # Clean up shared cache between tests
@@ -71,7 +69,7 @@ class TestSharedCacheIntegration(unittest.TestCase):
                 self.TEST_CONTAINER_ID)
 
             # Client1 read triggers routing map population
-            self.container.read_item("item-0", partition_key="pk-0")
+            self.container.read_item("shared-cache-item-0", partition_key="pk-0")
 
             cache1 = self._get_cache_dict(self.client1)
             cache2 = self._get_cache_dict(client2)
@@ -80,8 +78,8 @@ class TestSharedCacheIntegration(unittest.TestCase):
             self.assertIs(cache1, cache2)
 
             # Client2 can read without triggering a new _ReadPartitionKeyRanges
-            result = container2.read_item("item-1", partition_key="pk-1")
-            self.assertEqual(result["id"], "item-1")
+            result = container2.read_item("shared-cache-item-1", partition_key="pk-1")
+            self.assertEqual(result["id"], "shared-cache-item-1")
         finally:
             pass  # sync client cleaned up by GC
 
@@ -111,7 +109,7 @@ class TestSharedCacheIntegration(unittest.TestCase):
     def test_clear_cache_triggers_repopulation(self):
         """After clear_cache(), the next operation transparently re-populates."""
         # Populate cache
-        self.container.read_item("item-0", partition_key="pk-0")
+        self.container.read_item("shared-cache-item-0", partition_key="pk-0")
         cache = self._get_cache_dict(self.client1)
         self.assertTrue(len(cache) > 0)
 
@@ -122,8 +120,8 @@ class TestSharedCacheIntegration(unittest.TestCase):
         self.assertEqual(len(cache), 0)
 
         # Next read transparently re-populates
-        result = self.container.read_item("item-0", partition_key="pk-0")
-        self.assertEqual(result["id"], "item-0")
+        result = self.container.read_item("shared-cache-item-0", partition_key="pk-0")
+        self.assertEqual(result["id"], "shared-cache-item-0")
         cache = self._get_cache_dict(self.client1)
         self.assertTrue(len(cache) > 0)
 
@@ -135,7 +133,7 @@ class TestSharedCacheIntegration(unittest.TestCase):
                 self.TEST_CONTAINER_ID)
 
             # Both populate via client1
-            self.container.read_item("item-0", partition_key="pk-0")
+            self.container.read_item("shared-cache-item-0", partition_key="pk-0")
             old_cache = self._get_cache_dict(self.client1)
             self.assertTrue(len(old_cache) > 0)
 
@@ -150,8 +148,8 @@ class TestSharedCacheIntegration(unittest.TestCase):
             self.assertEqual(len(cache1), 0)
 
             # Client2 read re-populates
-            result = container2.read_item("item-2", partition_key="pk-2")
-            self.assertEqual(result["id"], "item-2")
+            result = container2.read_item("shared-cache-item-2", partition_key="pk-2")
+            self.assertEqual(result["id"], "shared-cache-item-2")
         finally:
             pass  # sync client cleaned up by GC
 
@@ -167,7 +165,7 @@ class TestSharedCacheIntegration(unittest.TestCase):
         dummy_cache._collection_routing_map_by_item["dummy-coll"] = "dummy-data"
 
         # Populate emulator cache
-        self.container.read_item("item-0", partition_key="pk-0")
+        self.container.read_item("shared-cache-item-0", partition_key="pk-0")
         emulator_cache = self._get_cache_dict(self.client1)
 
         # Verify isolation

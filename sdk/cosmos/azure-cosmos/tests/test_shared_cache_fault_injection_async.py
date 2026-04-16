@@ -33,15 +33,12 @@ class TestSharedCacheFaultInjectionAsync(unittest.IsolatedAsyncioTestCase):
     host = test_config.TestConfig.host
     master_key = test_config.TestConfig.masterKey
     TEST_DATABASE_ID = test_config.TestConfig.TEST_DATABASE_ID
-    TEST_CONTAINER_ID = "async-fault-cache-test"
+    TEST_CONTAINER_ID = test_config.TestConfig.TEST_MULTI_PARTITION_CONTAINER_ID
 
     async def asyncSetUp(self):
         self.client = CosmosClient(self.host, self.master_key)
         db = self.client.get_database_client(self.TEST_DATABASE_ID)
-        self.container = await db.create_container_if_not_exists(
-            id=self.TEST_CONTAINER_ID,
-            partition_key=PartitionKey(path="/pk"),
-        )
+        self.container = db.get_container_client(test_config.TestConfig.TEST_MULTI_PARTITION_CONTAINER_ID)
         for i in range(10):
             await self.container.upsert_item({"id": f"afi-{i}", "pk": f"pk-{i % 3}", "value": i})
 
