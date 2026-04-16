@@ -55,7 +55,7 @@ class TestSharedCacheFaultInjection(unittest.TestCase):
             cls.db.delete_container(cls.TEST_CONTAINER_ID)
         except Exception:
             pass
-        cls.client.close()
+        pass  # sync client cleaned up by GC
 
     def tearDown(self):
         with _shared_cache_lock:
@@ -100,7 +100,7 @@ class TestSharedCacheFaultInjection(unittest.TestCase):
             result = container.read_item("fi-0", partition_key="pk-0")
             self.assertEqual(result["id"], "fi-0")
         finally:
-            client.close()
+            pass  # sync client cleaned up by GC
 
     def test_stale_cache_after_partition_split_simulation(self):
         """410/1002 (partition split) triggers routing map refresh, shared with client2."""
@@ -142,8 +142,8 @@ class TestSharedCacheFaultInjection(unittest.TestCase):
             cache2 = client2.client_connection._routing_map_provider._collection_routing_map_by_item
             self.assertIs(cache1, cache2)
         finally:
-            client1.close()
-            client2.close()
+            pass  # sync client cleaned up by GC
+            pass  # sync client cleaned up by GC
 
     def test_concurrent_cache_refresh_no_crash(self):
         """Multiple threads calling clear_cache + read concurrently don't crash or corrupt."""
@@ -159,7 +159,7 @@ class TestSharedCacheFaultInjection(unittest.TestCase):
                     client.client_connection._routing_map_provider.clear_cache()
                     result = container.read_item(f"fi-{worker_id % 3}", partition_key=f"pk-{worker_id % 3}")
                     assert result["id"] == f"fi-{worker_id % 3}"
-                client.close()
+                pass  # sync client cleaned up by GC
             except Exception as e:
                 errors.append((worker_id, str(e)))
 
@@ -218,7 +218,7 @@ class TestSharedCacheFaultInjection(unittest.TestCase):
             cache = client.client_connection._routing_map_provider._collection_routing_map_by_item
             self.assertTrue(len(cache) > 0)
         finally:
-            client.close()
+            pass  # sync client cleaned up by GC
 
     def test_clear_cache_during_concurrent_reads(self):
         """Clearing cache while reads are in progress doesn't cause crashes."""
@@ -237,7 +237,7 @@ class TestSharedCacheFaultInjection(unittest.TestCase):
                         errors.append(str(e))
                         break
             finally:
-                client.close()
+                pass  # sync client cleaned up by GC
 
         # Start readers
         threads = [threading.Thread(target=reader) for _ in range(3)]

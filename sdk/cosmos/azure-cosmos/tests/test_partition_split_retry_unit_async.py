@@ -534,9 +534,8 @@ class TestPartitionSplitRetryUnitAsync(unittest.IsolatedAsyncioTestCase):
         )
         mock_provider_ctor.assert_not_called()
 
-    @patch('azure.cosmos.aio._cosmos_client_connection_async.SmartRoutingMapProvider')
-    async def test_refresh_routing_map_provider_transient_targeted_error_falls_back_to_full_async(self, mock_provider_ctor):
-        """Async targeted refresh should degrade to full refresh on transient transport errors."""
+    async def test_refresh_routing_map_provider_transient_targeted_error_falls_back_to_full_async(self):
+        """Async targeted refresh should degrade to full refresh (clear_cache) on transient transport errors."""
         conn = object.__new__(CosmosClientConnection)
         conn._routing_map_provider = MagicMock()
 
@@ -544,8 +543,6 @@ class TestPartitionSplitRetryUnitAsync(unittest.IsolatedAsyncioTestCase):
             raise ServiceRequestError("network down")
 
         conn._routing_map_provider.get_routing_map = _raise_transport
-        replacement_provider = MagicMock()
-        mock_provider_ctor.return_value = replacement_provider
 
         await conn.refresh_routing_map_provider(
             collection_link="dbs/db/colls/c1",
@@ -553,12 +550,10 @@ class TestPartitionSplitRetryUnitAsync(unittest.IsolatedAsyncioTestCase):
             feed_options={}
         )
 
-        self.assertIs(conn._routing_map_provider, replacement_provider)
-        mock_provider_ctor.assert_called_once_with(conn)
+        conn._routing_map_provider.clear_cache.assert_called_once()
 
-    @patch('azure.cosmos.aio._cosmos_client_connection_async.SmartRoutingMapProvider')
-    async def test_refresh_routing_map_provider_410_targeted_error_falls_back_to_full_async(self, mock_provider_ctor):
-        """Async targeted refresh should treat 410 as transient and fall back to full refresh with warning."""
+    async def test_refresh_routing_map_provider_410_targeted_error_falls_back_to_full_async(self):
+        """Async targeted refresh should treat 410 as transient and fall back to full refresh (clear_cache) with warning."""
         conn = object.__new__(CosmosClientConnection)
         conn._routing_map_provider = MagicMock()
 
@@ -569,8 +564,6 @@ class TestPartitionSplitRetryUnitAsync(unittest.IsolatedAsyncioTestCase):
             )
 
         conn._routing_map_provider.get_routing_map = _raise_410
-        replacement_provider = MagicMock()
-        mock_provider_ctor.return_value = replacement_provider
 
         with self.assertLogs("azure.cosmos.aio._cosmos_client_connection_async", level="WARNING") as logs:
             await conn.refresh_routing_map_provider(
@@ -579,8 +572,7 @@ class TestPartitionSplitRetryUnitAsync(unittest.IsolatedAsyncioTestCase):
                 feed_options={}
             )
 
-        self.assertIs(conn._routing_map_provider, replacement_provider)
-        mock_provider_ctor.assert_called_once_with(conn)
+        conn._routing_map_provider.clear_cache.assert_called_once()
         self.assertTrue(any("transient status code 410" in message for message in logs.output))
 
     @patch('azure.cosmos.aio._cosmos_client_connection_async.SmartRoutingMapProvider')

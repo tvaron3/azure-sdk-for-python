@@ -53,6 +53,14 @@ class PKRange(_PKRangeBase):
     def items(self):
         return zip(self._fields, self)
 
+    def __eq__(self, other):
+        if isinstance(other, dict):
+            return all(self.get(f) == other.get(f) for f in ('id', 'minInclusive', 'maxExclusive'))
+        return super().__eq__(other)
+
+    def __hash__(self):
+        return super().__hash__()
+
 
 class PartitionKeyRange(object):
     """Partition Key Range Constants"""

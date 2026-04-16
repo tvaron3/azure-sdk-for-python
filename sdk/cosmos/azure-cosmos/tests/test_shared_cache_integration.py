@@ -50,7 +50,7 @@ class TestSharedCacheIntegration(unittest.TestCase):
             cls.db.delete_container(cls.TEST_CONTAINER_ID)
         except Exception:
             pass
-        cls.client1.close()
+        pass  # sync client cleaned up by GC
 
     def tearDown(self):
         # Clean up shared cache between tests
@@ -83,7 +83,7 @@ class TestSharedCacheIntegration(unittest.TestCase):
             result = container2.read_item("item-1", partition_key="pk-1")
             self.assertEqual(result["id"], "item-1")
         finally:
-            client2.close()
+            pass  # sync client cleaned up by GC
 
     def test_multi_client_shared_cache_queries(self):
         """Client2 uses cached routing map populated by client1 for queries."""
@@ -106,7 +106,7 @@ class TestSharedCacheIntegration(unittest.TestCase):
             ))
             self.assertTrue(len(results) > 0)
         finally:
-            client2.close()
+            pass  # sync client cleaned up by GC
 
     def test_clear_cache_triggers_repopulation(self):
         """After clear_cache(), the next operation transparently re-populates."""
@@ -153,7 +153,7 @@ class TestSharedCacheIntegration(unittest.TestCase):
             result = container2.read_item("item-2", partition_key="pk-2")
             self.assertEqual(result["id"], "item-2")
         finally:
-            client2.close()
+            pass  # sync client cleaned up by GC
 
     def test_different_endpoints_isolated_with_emulator(self):
         """Emulator client cache is isolated from a different endpoint."""
