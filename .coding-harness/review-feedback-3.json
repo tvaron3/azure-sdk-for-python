@@ -1,0 +1,44 @@
+{
+  "version": "1.0",
+  "pr_number": 46297,
+  "iteration": 3,
+  "reviewer": "PR Deep Reviewer",
+  "head_commit": "4aaa556bd6",
+  "overall_assessment": "approve",
+  "stats": {"critical": 0, "major": 1, "minor": 3, "observation": 4},
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "major",
+      "category": "correctness_edge_case",
+      "title": "Cross-event-loop asyncio.Lock sharing — latent RuntimeError when async clients share endpoint across event loops",
+      "files": ["sdk/cosmos/azure-cosmos/azure/cosmos/_routing/aio/routing_map_provider.py"],
+      "decision": "defer",
+      "rationale": "Reviewer explicitly marks as non-blocking (\"Not blocking iter-3 since the typical single-loop case is fine, but worth a tracking issue\"). Multi-event-loop deployments are a niche pattern — same-process multi-loop usage of a single async client/endpoint is rare. Fix would key locks by `(endpoint, id(loop))` which adds a per-loop dimension to the shared cache and slightly weakens the sharing benefit. Per user directive to keep scope tight on this PR, deferring to a follow-up tracking issue."
+    },
+    {
+      "id": "F2",
+      "severity": "minor",
+      "category": "thread_safety",
+      "title": "Pre-existing window between _get_lock_for_collection and lock acquisition — clear_cache during refresh can spawn duplicate fetches",
+      "decision": "skip",
+      "rationale": "Reviewer notes this is a pre-existing pattern not introduced by this PR. Worst case is a duplicate fetch, not data corruption. Out of scope."
+    },
+    {
+      "id": "F3",
+      "severity": "minor",
+      "category": "documentation",
+      "title": "PKRange.__contains__ semantic divergence from dict — undocumented",
+      "decision": "fix",
+      "fix_approach": "Add a docstring on PKRange.__contains__ explaining that `key in pkr` returns True only when the field has a non-empty value, so `in` doubles as a truthy presence check."
+    },
+    {
+      "id": "F4",
+      "severity": "minor",
+      "category": "code_quality",
+      "title": "_resolve_endpoint duplicated in sync vs async modules",
+      "decision": "skip",
+      "rationale": "Both copies are 4 lines and identical. Hoisting to _routing_map_provider_common.py adds an import dependency for marginal gain. Sync/async parity is enforced by review. Defer to natural cleanup if the helper grows."
+    }
+  ]
+}

@@ -48,6 +48,14 @@ class PKRange(_PKRangeBase):
         return getattr(self, key, default)
 
     def __contains__(self, key):
+        """Return True only if ``key`` names a field that has a non-empty value.
+
+        Diverges intentionally from ``dict``-style semantics: an absent or
+        empty (``None`` / ``()``) field reports as not-present, so callers may
+        use ``key in pkr`` as a single truthy presence check (the same
+        expression that earlier worked against raw service dicts where the
+        field was simply missing when empty).
+        """
         if key not in self._fields:
             return False
         val = getattr(self, key)
