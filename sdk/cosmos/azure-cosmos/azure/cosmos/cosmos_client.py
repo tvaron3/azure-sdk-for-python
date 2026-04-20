@@ -256,7 +256,13 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
         return self
 
     def __exit__(self, *args):
-        return self.client_connection.pipeline_client.__exit__(*args)
+        try:
+            return self.client_connection.pipeline_client.__exit__(*args)
+        finally:
+            try:
+                self.client_connection._routing_map_provider.release()  # pylint: disable=protected-access
+            except Exception:  # pylint: disable=broad-except
+                pass
 
     @classmethod
     def from_connection_string(

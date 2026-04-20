@@ -538,6 +538,7 @@ class TestPartitionSplitRetryUnitAsync(unittest.IsolatedAsyncioTestCase):
         """Async targeted refresh should degrade to full refresh (clear_cache) on transient transport errors."""
         conn = object.__new__(CosmosClientConnection)
         conn._routing_map_provider = MagicMock()
+        conn._routing_map_provider.clear_cache = AsyncMock()
 
         async def _raise_transport(*args, **kwargs):
             raise ServiceRequestError("network down")
@@ -556,6 +557,7 @@ class TestPartitionSplitRetryUnitAsync(unittest.IsolatedAsyncioTestCase):
         """Async targeted refresh should treat 410 as transient and fall back to full refresh (clear_cache) with warning."""
         conn = object.__new__(CosmosClientConnection)
         conn._routing_map_provider = MagicMock()
+        conn._routing_map_provider.clear_cache = AsyncMock()
 
         async def _raise_410(*args, **kwargs):
             raise exceptions.CosmosHttpResponseError(

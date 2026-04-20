@@ -48,14 +48,22 @@ class PKRange(_PKRangeBase):
         return getattr(self, key, default)
 
     def __contains__(self, key):
-        return key in self._fields
+        if key not in self._fields:
+            return False
+        val = getattr(self, key)
+        return val is not None and val != ()
 
     def items(self):
         return zip(self._fields, self)
 
     def __eq__(self, other):
         if isinstance(other, dict):
-            return all(self.get(f) == other.get(f) for f in ('id', 'minInclusive', 'maxExclusive'))
+            for f in ('id', 'minInclusive', 'maxExclusive'):
+                if self.get(f) != other.get(f):
+                    return False
+            self_parents = self.parents or ()
+            other_parents = other.get('parents') or ()
+            return tuple(self_parents) == tuple(other_parents)
         return super().__eq__(other)
 
     def __hash__(self):

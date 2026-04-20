@@ -44,8 +44,29 @@ if TYPE_CHECKING:
     from ...aio._cosmos_client_connection_async import CosmosClientConnection
 
 # Shared routing map cache across all clients targeting the same endpoint.
+# All four module-level dicts are keyed by endpoint and protected by
+# ``_shared_cache_lock`` for mutation. Per-collection refresh serialization is
+# handled by the per-endpoint asyncio.Locks in ``_shared_collection_locks`` so
+# that all clients sharing an endpoint single-flight refreshes through the
+# same lock.
 _shared_routing_map_cache: dict = {}
+_shared_collection_locks: Dict[str, Dict[str, asyncio.Lock]] = {}
+_shared_locks_locks: Dict[str, asyncio.Lock] = {}
+_shared_cache_refcounts: Dict[str, int] = {}
 _shared_cache_lock = threading.Lock()
+
+
+def _resolve_endpoint(client: Any) -> str:
+    """Return a cache key for ``client``'s endpoint.
+
+    Falls back to ``__unknown_<id>__`` when ``client`` has no ``url_connection``
+    so unknown/mocked clients are isolated rather than collapsed into a single
+    shared cache entry.
+    """
+    try:
+        return client.url_connection
+    except AttributeError:
+        return f"__unknown_{id(client)}__"
 
 # pylint: disable=protected-access
 
@@ -70,28 +91,68 @@ class PartitionKeyRangeCache(object):
         """
 
         self._document_client = client
-        self._endpoint = getattr(client, 'url_connection', '')
+        self._endpoint = _resolve_endpoint(client)
+        self._released = False
 
-        # Share routing map cache across clients with the same endpoint
+        # Share routing map cache, per-collection asyncio locks, and the
+        # per-endpoint meta-lock that guards the per-collection-lock dict
+        # across all clients with the same endpoint. Refcount lets us evict
+        # the entry when the last sharing client releases it (see ``release``).
         with _shared_cache_lock:
             if self._endpoint not in _shared_routing_map_cache:
                 _shared_routing_map_cache[self._endpoint] = {}
+                _shared_collection_locks[self._endpoint] = {}
+                _shared_locks_locks[self._endpoint] = asyncio.Lock()
+                _shared_cache_refcounts[self._endpoint] = 0
+            _shared_cache_refcounts[self._endpoint] += 1
             self._collection_routing_map_by_item = _shared_routing_map_cache[self._endpoint]
-        # A lock to control access to the locks dictionary itself
-        self._locks_lock = asyncio.Lock()
-        # A dictionary to hold a lock for each collection ID
-        self._collection_locks: Dict[str, asyncio.Lock] = {}
+            self._collection_locks: Dict[str, asyncio.Lock] = _shared_collection_locks[self._endpoint]
+            self._locks_lock: asyncio.Lock = _shared_locks_locks[self._endpoint]
 
-    def clear_cache(self):
+    async def clear_cache(self):
         """Clear the shared routing map cache for this endpoint.
 
-        Uses in-place .clear() to preserve all client references to the same dict.
+        Uses in-place ``.clear()`` to preserve all client references to the
+        same dict and the same per-collection lock dict, so concurrent clients
+        sharing the endpoint continue to single-flight through the same locks.
         """
-        with _shared_cache_lock:
-            if self._endpoint in _shared_routing_map_cache:
-                _shared_routing_map_cache[self._endpoint].clear()
+        async with self._locks_lock:
+            with _shared_cache_lock:
+                if self._endpoint in _shared_routing_map_cache:
+                    _shared_routing_map_cache[self._endpoint].clear()
+            self._collection_locks.clear()
 
-        self._collection_locks.clear()
+    def release(self) -> None:
+        """Decrement the per-endpoint refcount and evict shared state at zero.
+
+        Safe to call multiple times. Best-effort: never raises.
+        """
+        if self._released:
+            return
+        self._released = True
+        endpoint = self._endpoint
+        try:
+            with _shared_cache_lock:
+                count = _shared_cache_refcounts.get(endpoint, 0) - 1
+                if count <= 0:
+                    _shared_cache_refcounts.pop(endpoint, None)
+                    _shared_routing_map_cache.pop(endpoint, None)
+                    _shared_collection_locks.pop(endpoint, None)
+                    _shared_locks_locks.pop(endpoint, None)
+                else:
+                    _shared_cache_refcounts[endpoint] = count
+        except Exception:  # pylint: disable=broad-except
+            # release() may be called from __del__ during interpreter shutdown
+            # where module globals may already be torn down.
+            pass
+
+    def __del__(self):
+        # Defensive fallback in case the owning client teardown path didn't
+        # call release(). Must never raise.
+        try:
+            self.release()
+        except Exception:  # pylint: disable=broad-except
+            pass
 
     async def _get_lock_for_collection(self, collection_id: str) -> asyncio.Lock:
         """Safely gets or creates a lock for a given collection ID.

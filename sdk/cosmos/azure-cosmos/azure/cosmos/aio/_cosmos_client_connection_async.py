@@ -3491,11 +3491,11 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
                 )
         else:
             # Full refresh - clear the shared routing map cache for this endpoint.
-            self._routing_map_provider.clear_cache()
+            await self._routing_map_provider.clear_cache()
             return
 
         # Fallback to full refresh when targeted refresh fails transiently.
-        self._routing_map_provider.clear_cache()
+        await self._routing_map_provider.clear_cache()
 
     async def _refresh_container_properties_cache(self, container_link: str):
         # If container properties cache is stale, refresh it by reading the container.

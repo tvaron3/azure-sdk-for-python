@@ -75,7 +75,7 @@ class TestSharedPartitionKeyRangeCacheAsync(unittest.IsolatedAsyncioTestCase):
         cache2 = PartitionKeyRangeCache(c2)
         original_dict = cache1._collection_routing_map_by_item
         cache1._collection_routing_map_by_item["coll1"] = "dummy"
-        cache1.clear_cache()
+        await cache1.clear_cache()
         self.assertNotIn("coll1", cache1._collection_routing_map_by_item)
         self.assertIs(cache1._collection_routing_map_by_item, original_dict)
         self.assertIs(cache2._collection_routing_map_by_item, original_dict)
@@ -88,7 +88,7 @@ class TestSharedPartitionKeyRangeCacheAsync(unittest.IsolatedAsyncioTestCase):
         cache2 = PartitionKeyRangeCache(c2)
         cache1._collection_routing_map_by_item["coll1"] = "data1"
         cache2._collection_routing_map_by_item["coll2"] = "data2"
-        cache1.clear_cache()
+        await cache1.clear_cache()
         self.assertNotIn("coll1", cache1._collection_routing_map_by_item)
         self.assertIn("coll2", cache2._collection_routing_map_by_item)
 
