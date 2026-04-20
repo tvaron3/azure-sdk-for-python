@@ -1,0 +1,103 @@
+{
+  "version": "1.0",
+  "pr_number": 46297,
+  "iteration": 2,
+  "reviewer": "PR Deep Reviewer",
+  "head_commit": "b0780c6169",
+  "overall_assessment": "changes_requested",
+  "stats": {"critical": 2, "major": 4, "suggestion": 3, "info": 1},
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "critical",
+      "category": "correctness_perf",
+      "title": "Cache stampede: shared cache cleared by clear_cache but per-instance _collection_locks fail to single-flight refresh across clients",
+      "files": [
+        "sdk/cosmos/azure-cosmos/azure/cosmos/_routing/aio/routing_map_provider.py",
+        "sdk/cosmos/azure-cosmos/azure/cosmos/_routing/routing_map_provider.py"
+      ],
+      "summary": "After clear_cache() wipes the shared dict, all N clients hit their own per-instance lock and concurrently re-fetch routing map, undermining the perf goal.",
+      "decision": "fix",
+      "fix_approach": "Move _collection_locks (or at least the refresh single-flight lock) into a shared, per-endpoint structure stored alongside the shared cache, so all clients sharing an endpoint serialize through the same lock."
+    },
+    {
+      "id": "F2",
+      "severity": "critical",
+      "category": "memory",
+      "title": "_shared_routing_map_cache is a process-lifetime memory leak — never evicted",
+      "files": [
+        "sdk/cosmos/azure-cosmos/azure/cosmos/_routing/aio/routing_map_provider.py",
+        "sdk/cosmos/azure-cosmos/azure/cosmos/_routing/routing_map_provider.py"
+      ],
+      "summary": "Module-level dict keyed by url_connection grows unboundedly when clients close. Multi-tenant or short-lived-client scenarios leak.",
+      "decision": "fix",
+      "fix_approach": "Add per-endpoint refcount: __init__ increments, expose a release/close hook that decrements and pops the entry when refcount hits 0. Wire into existing client close paths."
+    },
+    {
+      "id": "F3",
+      "severity": "major",
+      "category": "thread_safety",
+      "title": "Async clear_cache does not acquire _locks_lock — sync version does",
+      "files": ["sdk/cosmos/azure-cosmos/azure/cosmos/_routing/aio/routing_map_provider.py"],
+      "decision": "fix",
+      "fix_approach": "Make async clear_cache async and properly serialize with the same lock used in _get_lock_for_collection. Update the two call sites in aio/_cosmos_client_connection_async.py to await it (covers F8/Suggestion-3)."
+    },
+    {
+      "id": "F4",
+      "severity": "major",
+      "category": "correctness",
+      "title": "PKRange.__contains__ returns True for any field name regardless of value",
+      "files": ["sdk/cosmos/azure-cosmos/azure/cosmos/_routing/routing_range.py"],
+      "summary": "Existing call sites like `if Parents in r and r[Parents]` still work but semantics diverge from raw dict; future cleanup of the truthiness guard would silently misbehave.",
+      "decision": "fix",
+      "fix_approach": "Narrow __contains__ to `key in self._fields and getattr(self, key) is not None and getattr(self, key) != ()`."
+    },
+    {
+      "id": "F5",
+      "severity": "major",
+      "category": "correctness",
+      "title": "PKRange.__eq__ asymmetric / inconsistent with __hash__ and excludes parents from dict comparison",
+      "files": ["sdk/cosmos/azure-cosmos/azure/cosmos/_routing/routing_range.py", "sdk/cosmos/azure-cosmos/tests/test_routing_map.py"],
+      "decision": "fix",
+      "fix_approach": "Include parents in the dict-comparison branch and restore the parents assertion in tests/test_routing_map.test_routing_map_provider."
+    },
+    {
+      "id": "F6",
+      "severity": "major",
+      "category": "robustness",
+      "title": "getattr(client,'url_connection','') silently collapses unknown clients into one shared cache entry",
+      "files": [
+        "sdk/cosmos/azure-cosmos/azure/cosmos/_routing/aio/routing_map_provider.py",
+        "sdk/cosmos/azure-cosmos/azure/cosmos/_routing/routing_map_provider.py"
+      ],
+      "decision": "fix",
+      "fix_approach": "Drop the empty-string default. If url_connection is missing, fall back to id(client) so unknown/mocked clients get isolated cache slots."
+    },
+    {
+      "id": "F7",
+      "severity": "suggestion",
+      "category": "performance",
+      "title": ".upper() conditional optimization in Range.__init__ likely doesn't pay back its branch cost",
+      "files": ["sdk/cosmos/azure-cosmos/azure/cosmos/_routing/routing_range.py"],
+      "decision": "skip",
+      "rationale": "Out of scope; `__slots__` is the dominant memory win. Removing this hunk is a micro-optimization debate that would need its own micro-benchmark. Keep current behavior."
+    },
+    {
+      "id": "F8",
+      "severity": "suggestion",
+      "category": "testing",
+      "title": "Async tests are mostly smoke tests; do not assert single fetch across clients",
+      "files": ["sdk/cosmos/azure-cosmos/tests/test_shared_cache_integration_async.py"],
+      "decision": "skip",
+      "rationale": "User instruction: do NOT introduce new test files or change scope. Sync test_shared_cache_integration.py already asserts the single-fetch invariant (covered for primary code path); async paths share the same code via mirrored providers. Tracked for a follow-up PR if desired."
+    },
+    {
+      "id": "F9",
+      "severity": "info",
+      "category": "documentation",
+      "title": "PR title/branch name doesn't reflect dual scope (sharing + stripping)",
+      "decision": "skip",
+      "rationale": "Cosmetic; PR description and CHANGELOG already describe both changes."
+    }
+  ]
+}

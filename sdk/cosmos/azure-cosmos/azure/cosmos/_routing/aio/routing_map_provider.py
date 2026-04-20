@@ -62,6 +62,13 @@ def _resolve_endpoint(client: Any) -> str:
     Falls back to ``__unknown_<id>__`` when ``client`` has no ``url_connection``
     so unknown/mocked clients are isolated rather than collapsed into a single
     shared cache entry.
+
+    :param client: The CosmosClient (or compatible) instance whose endpoint
+        will be used as the shared-cache key.
+    :type client: Any
+    :returns: The endpoint URL string, or a per-instance fallback key when the
+        client does not expose ``url_connection``.
+    :rtype: str
     """
     try:
         return client.url_connection

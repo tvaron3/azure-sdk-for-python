@@ -1,0 +1,156 @@
+{
+  "version": "1.0",
+  "issue": {
+    "number": 46297,
+    "title": "perf(cosmos): share pk range cache + __slots__ + PKRange",
+    "url": "https://github.com/Azure/azure-sdk-for-python/pull/46297",
+    "body": "Reduce per-client memory overhead when PPCB is enabled by sharing the partition key range routing map cache across CosmosClient instances connected to the same endpoint, stripping unused fields from cached partition key ranges, and adding __slots__ to Range and _PartitionHealthInfo.",
+    "labels": [
+      "Cosmos",
+      "perf"
+    ]
+  },
+  "analysis": {
+    "problem_statement": "When PPCB (Per-Partition Circuit Breaker) is enabled, each CosmosClient eagerly loads the full partition key range routing map. With 100K+ partitions and 150 clients, memory grows from 37MB to 65MB (+76%) because each client stores its own copy of the routing map with full 13-field JSON dicts per partition range.",
+    "root_cause": "Each PartitionKeyRangeCache instance creates its own _collection_routing_map_by_item dict. With N clients to the same endpoint, there are N independent copies of identical routing maps. Additionally, each partition key range is stored as a full dict with ~13 service fields when only 4 are needed.",
+    "related_files": [
+      {
+        "path": "sdk/cosmos/azure-cosmos/azure/cosmos/_routing/routing_map_provider.py",
+        "relevance": "Sync PartitionKeyRangeCache - shared cache"
+      },
+      {
+        "path": "sdk/cosmos/azure-cosmos/azure/cosmos/_routing/aio/routing_map_provider.py",
+        "relevance": "Async PartitionKeyRangeCache - shared cache"
+      },
+      {
+        "path": "sdk/cosmos/azure-cosmos/azure/cosmos/_routing/routing_range.py",
+        "relevance": "Range __slots__ + PKRange namedtuple"
+      },
+      {
+        "path": "sdk/cosmos/azure-cosmos/azure/cosmos/_routing/collection_routing_map.py",
+        "relevance": "PKRange conversion in full refresh path"
+      },
+      {
+        "path": "sdk/cosmos/azure-cosmos/azure/cosmos/_routing/_routing_map_provider_common.py",
+        "relevance": "PKRange conversion in incremental path"
+      },
+      {
+        "path": "sdk/cosmos/azure-cosmos/azure/cosmos/_cosmos_client_connection.py",
+        "relevance": "clear_cache() call sites"
+      },
+      {
+        "path": "sdk/cosmos/azure-cosmos/azure/cosmos/aio/_cosmos_client_connection_async.py",
+        "relevance": "Async clear_cache() call sites"
+      },
+      {
+        "path": "sdk/cosmos/azure-cosmos/azure/cosmos/_partition_health_tracker.py",
+        "relevance": "_PartitionHealthInfo __slots__"
+      }
+    ],
+    "dependencies": [
+      "threading (sync locks)",
+      "asyncio (async locks)"
+    ],
+    "existing_patterns": "PartitionKeyRangeCache previously created independent routing map dicts per client. refresh_routing_map_provider() previously re-created the entire SmartRoutingMapProvider instance."
+  },
+  "spec": {
+    "objective": "Reduce memory overhead by sharing routing map cache across clients and stripping unused partition key range fields.",
+    "requirements": [
+      {
+        "id": "R1",
+        "description": "Module-level shared cache dict keyed by endpoint URL. Clients to the same endpoint share one routing map.",
+        "priority": "must"
+      },
+      {
+        "id": "R2",
+        "description": "PKRange namedtuple retaining only id, minInclusive, maxExclusive, parents (4 of 13 fields).",
+        "priority": "must"
+      },
+      {
+        "id": "R3",
+        "description": "PKRange supports dict-style access (__getitem__, get, __contains__) for backward compatibility.",
+        "priority": "must"
+      },
+      {
+        "id": "R4",
+        "description": "__slots__ on Range class to reduce per-instance memory from ~250 to ~64 bytes.",
+        "priority": "should"
+      },
+      {
+        "id": "R5",
+        "description": "__slots__ on _PartitionHealthInfo for similar memory reduction.",
+        "priority": "should"
+      },
+      {
+        "id": "R6",
+        "description": "clear_cache() replaces SmartRoutingMapProvider re-creation for cache invalidation.",
+        "priority": "must"
+      },
+      {
+        "id": "R7",
+        "description": "Thread-safe lock initialization in __init__ (not in clear_cache).",
+        "priority": "must"
+      }
+    ],
+    "acceptance_criteria": [
+      {
+        "id": "AC1",
+        "description": "Two clients to same endpoint share the same routing map dict object.",
+        "testable": true
+      },
+      {
+        "id": "AC2",
+        "description": "clear_cache() on one client clears the shared cache for that endpoint.",
+        "testable": true
+      },
+      {
+        "id": "AC3",
+        "description": "Different endpoints have isolated caches.",
+        "testable": true
+      },
+      {
+        "id": "AC4",
+        "description": "PKRange supports r[\"id\"], r.get(\"id\"), \"id\" in r syntax.",
+        "testable": true
+      },
+      {
+        "id": "AC5",
+        "description": "All CRUD operations work with PKRange-based routing maps.",
+        "testable": true
+      },
+      {
+        "id": "AC6",
+        "description": "410 Gone triggers cache refresh and retry succeeds.",
+        "testable": true
+      },
+      {
+        "id": "AC7",
+        "description": "Concurrent cache refresh with multiple threads/tasks doesnt crash.",
+        "testable": true
+      }
+    ],
+    "technical_approach": "Module-level _shared_routing_map_cache dict with threading.Lock. PartitionKeyRangeCache.__init__ looks up or creates endpoint entry. clear_cache() replaces the dict for that endpoint. PKRange is a namedtuple subclass with dict-compatible __getitem__.",
+    "files_to_modify": [
+      "sdk/cosmos/azure-cosmos/azure/cosmos/_routing/routing_map_provider.py",
+      "sdk/cosmos/azure-cosmos/azure/cosmos/_routing/aio/routing_map_provider.py",
+      "sdk/cosmos/azure-cosmos/azure/cosmos/_routing/routing_range.py",
+      "sdk/cosmos/azure-cosmos/azure/cosmos/_routing/collection_routing_map.py",
+      "sdk/cosmos/azure-cosmos/azure/cosmos/_routing/_routing_map_provider_common.py",
+      "sdk/cosmos/azure-cosmos/azure/cosmos/_cosmos_client_connection.py",
+      "sdk/cosmos/azure-cosmos/azure/cosmos/aio/_cosmos_client_connection_async.py",
+      "sdk/cosmos/azure-cosmos/azure/cosmos/_partition_health_tracker.py"
+    ],
+    "files_to_create": [
+      "sdk/cosmos/azure-cosmos/tests/routing/test_shared_pk_range_cache.py",
+      "sdk/cosmos/azure-cosmos/tests/test_shared_cache_integration.py",
+      "sdk/cosmos/azure-cosmos/tests/test_shared_cache_fault_injection.py",
+      "sdk/cosmos/azure-cosmos/tests/test_shared_cache_fault_injection_async.py"
+    ],
+    "test_strategy": "Unit tests for shared cache + PKRange. Integration tests with emulator for CRUD + change feed. Fault injection tests for 410 Gone, partition splits, concurrent refresh.",
+    "risks": [
+      "PKRange dict-access compatibility with all consumers",
+      "Thread safety of shared cache under concurrent access",
+      "clear_cache race with in-flight requests"
+    ]
+  }
+}

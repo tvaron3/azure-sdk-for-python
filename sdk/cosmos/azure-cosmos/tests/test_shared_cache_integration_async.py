@@ -171,6 +171,10 @@ class TestSharedCacheIntegrationAsync(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(Exception):
             await self.container.read_item(crud_id, partition_key="crud-pk")
 
+        # Async point reads / writes don't always populate the routing-map
+        # cache the way sync does (cf. _populate_cache helper). Drive a
+        # routing-aware operation so the cache assertion below is meaningful.
+        await self._populate_cache(self.client1, self.container)
         cache = self._get_cache_dict(self.client1)
         self.assertTrue(len(cache) > 0)
 
