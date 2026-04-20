@@ -80,7 +80,7 @@ class TestSharedCacheIntegrationAsync(unittest.IsolatedAsyncioTestCase):
 
             items = []
             async for item in self.container.query_items(
-                "SELECT * FROM c", enable_cross_partition_query=True
+                "SELECT * FROM c"
             ):
                 items.append(item)
 
@@ -89,25 +89,27 @@ class TestSharedCacheIntegrationAsync(unittest.IsolatedAsyncioTestCase):
 
             results = []
             async for item in container2.query_items(
-                "SELECT * FROM c WHERE c.pk = 'pk-0'",
-                enable_cross_partition_query=True
+                "SELECT * FROM c WHERE c.pk = 'pk-0'"
             ):
                 results.append(item)
             self.assertTrue(len(results) > 0)
 
     async def test_clear_cache_triggers_repopulation_async(self):
         """Async: After clear_cache(), the next operation transparently re-populates."""
-        await self.container.read_item("async-cache-item-0", partition_key="pk-0")
+        # Trigger PK range cache population via a cross-partition query
+        async for _ in self.container.query_items("SELECT * FROM c"):
+            pass
         cache = self._get_cache_dict(self.client1)
         self.assertTrue(len(cache) > 0)
 
         provider = self._get_routing_provider(self.client1)
         provider.clear_cache()
+        self.assertEqual(len(cache), 0)
 
-        result = await self.container.read_item("async-cache-item-0", partition_key="pk-0")
-        self.assertEqual(result["id"], "async-cache-item-0")
+        async for _ in self.container.query_items("SELECT * FROM c"):
+            pass
         cache = self._get_cache_dict(self.client1)
-        self.assertTrue(len(cache) > 0, "Cache should be re-populated after read")
+        self.assertTrue(len(cache) > 0, "Cache should be re-populated after query")
 
     async def test_clear_cache_propagates_to_shared_clients_async(self):
         """Async: clear_cache() preserves dict identity for all sharing clients."""
@@ -157,8 +159,7 @@ class TestSharedCacheIntegrationAsync(unittest.IsolatedAsyncioTestCase):
 
         results = []
         async for r in self.container.query_items(
-            f"SELECT * FROM c WHERE c.id = '{crud_id}'",
-            enable_cross_partition_query=True
+            f"SELECT * FROM c WHERE c.id = '{crud_id}'"
         ):
             results.append(r)
         self.assertEqual(len(results), 1)
