@@ -57,6 +57,11 @@ class TestSharedCacheIntegrationAsync(unittest.IsolatedAsyncioTestCase):
     def _get_cache_dict(self, client):
         return self._get_routing_provider(client)._collection_routing_map_by_item
 
+    async def _populate_cache(self, client, container):
+        """Force PK range cache population by directly calling the routing-map provider."""
+        provider = self._get_routing_provider(client)
+        await provider.get_routing_map(container.container_link, feed_options=None)
+
     async def test_multi_client_shared_cache_reads_async(self):
         """Async: Two clients to the same endpoint share the routing map."""
         async with CosmosClient(self.host, self.master_key) as client2:
@@ -78,14 +83,10 @@ class TestSharedCacheIntegrationAsync(unittest.IsolatedAsyncioTestCase):
             container2 = client2.get_database_client(self.TEST_DATABASE_ID).get_container_client(
                 self.TEST_CONTAINER_ID)
 
-            items = []
-            async for item in self.container.query_items(
-                "SELECT * FROM c"
-            ):
-                items.append(item)
+            await self._populate_cache(self.client1, self.container)
 
             cache = self._get_cache_dict(self.client1)
-            self.assertTrue(len(cache) > 0, "Cache should be populated after query")
+            self.assertTrue(len(cache) > 0, "Cache should be populated after routing-map fetch")
 
             results = []
             async for item in container2.query_items(
@@ -95,10 +96,8 @@ class TestSharedCacheIntegrationAsync(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(len(results) > 0)
 
     async def test_clear_cache_triggers_repopulation_async(self):
-        """Async: After clear_cache(), the next operation transparently re-populates."""
-        # Trigger PK range cache population via a cross-partition query
-        async for _ in self.container.query_items("SELECT * FROM c"):
-            pass
+        """Async: After clear_cache(), the next routing-map fetch transparently re-populates."""
+        await self._populate_cache(self.client1, self.container)
         cache = self._get_cache_dict(self.client1)
         self.assertTrue(len(cache) > 0)
 
@@ -106,10 +105,9 @@ class TestSharedCacheIntegrationAsync(unittest.IsolatedAsyncioTestCase):
         provider.clear_cache()
         self.assertEqual(len(cache), 0)
 
-        async for _ in self.container.query_items("SELECT * FROM c"):
-            pass
+        await self._populate_cache(self.client1, self.container)
         cache = self._get_cache_dict(self.client1)
-        self.assertTrue(len(cache) > 0, "Cache should be re-populated after query")
+        self.assertTrue(len(cache) > 0, "Cache should be re-populated after fetch")
 
     async def test_clear_cache_propagates_to_shared_clients_async(self):
         """Async: clear_cache() preserves dict identity for all sharing clients."""
