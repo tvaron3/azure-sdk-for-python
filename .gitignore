@@ -179,4 +179,4 @@ component-detection-pip-report.json
 uv.lock
 
 # Sphinx generated documentation
-website/
+website/.coding-harness/
