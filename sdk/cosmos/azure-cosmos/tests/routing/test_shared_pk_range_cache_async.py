@@ -13,7 +13,6 @@ import unittest
 
 import pytest
 
-from azure.cosmos._routing.routing_range import Range, PKRange
 from azure.cosmos._routing.collection_routing_map import CollectionRoutingMap
 from azure.cosmos._routing.aio.routing_map_provider import (
     PartitionKeyRangeCache,

@@ -1,7 +1,6 @@
 # The MIT License (MIT)
 # Copyright (c) Microsoft Corporation. All rights reserved.
 
-import sys
 import unittest
 
 import pytest
@@ -106,8 +105,10 @@ class TestSharedPartitionKeyRangeCache(unittest.TestCase):
 
     def test_range_has_slots(self):
         r = Range("00", "FF", True, False)
+        # __slots__ is verified by the absence of __dict__. sys.getsizeof() is
+        # intentionally not asserted because it is not a stable cross-version
+        # / cross-platform contract.
         self.assertFalse(hasattr(r, "__dict__"))
-        self.assertLess(sys.getsizeof(r), 100)
 
     def test_range_skips_upper_when_already_uppercase(self):
         original = "05C1C9CD673398"

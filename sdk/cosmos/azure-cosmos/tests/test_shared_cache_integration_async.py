@@ -15,8 +15,6 @@ import pytest
 
 import test_config
 from azure.cosmos.aio import CosmosClient
-from azure.cosmos import PartitionKey
-from azure.cosmos._routing.routing_range import PKRange
 from azure.cosmos._routing.aio.routing_map_provider import (
     PartitionKeyRangeCache,
     _shared_routing_map_cache,
@@ -50,6 +48,10 @@ class TestSharedCacheIntegrationAsync(unittest.IsolatedAsyncioTestCase):
             except Exception:
                 pass
         await self.client1.close()
+        # Release module-level shared routing-map state between async tests so
+        # the test order cannot affect cache contents observed by a later test.
+        with _shared_cache_lock:
+            _shared_routing_map_cache.pop(self.host, None)
 
     def _get_routing_provider(self, client):
         return client.client_connection._routing_map_provider

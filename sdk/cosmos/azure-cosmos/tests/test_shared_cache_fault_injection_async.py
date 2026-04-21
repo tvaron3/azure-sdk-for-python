@@ -11,18 +11,10 @@ import asyncio
 import unittest
 
 import pytest
-import pytest_asyncio
 
 import test_config
-from _fault_injection_transport_async import FaultInjectionTransportAsync
 from azure.cosmos.aio import CosmosClient
-from azure.cosmos import PartitionKey
 from azure.cosmos._routing.routing_range import PKRange
-from azure.cosmos._routing.aio.routing_map_provider import (
-    _shared_routing_map_cache,
-    _shared_cache_lock,
-)
-from azure.cosmos.exceptions import CosmosHttpResponseError
 
 
 @pytest.mark.cosmosEmulator
@@ -94,7 +86,7 @@ class TestSharedCacheFaultInjectionAsync(unittest.IsolatedAsyncioTestCase):
 
     async def test_pkrange_immutability_async(self):
         """Async: PKRange fields are immutable (namedtuple guarantee)."""
-        pk = PKRange(id="0", minInclusive="", maxExclusive="FF", parents=[])
+        pk = PKRange(id="0", minInclusive="", maxExclusive="FF", parents=())
         with self.assertRaises(AttributeError):
             pk.id = "modified"
         self.assertEqual(pk["id"], "0")

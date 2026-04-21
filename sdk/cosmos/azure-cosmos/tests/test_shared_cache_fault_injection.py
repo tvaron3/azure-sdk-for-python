@@ -11,22 +11,13 @@ data integrity under concurrent access.
 
 import threading
 import unittest
-import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from unittest.mock import patch
 
 import pytest
 
 import test_config
-from _fault_injection_transport import FaultInjectionTransport
-from azure.cosmos import CosmosClient, PartitionKey
+from azure.cosmos import CosmosClient
 from azure.cosmos._routing.routing_range import PKRange
-from azure.cosmos._routing.routing_map_provider import (
-    PartitionKeyRangeCache,
-    _shared_routing_map_cache,
-    _shared_cache_lock,
-)
-from azure.cosmos.exceptions import CosmosHttpResponseError
 
 
 @pytest.mark.cosmosEmulator
@@ -63,15 +54,15 @@ class TestSharedCacheFaultInjection(unittest.TestCase):
 
         def worker(worker_id):
             try:
-                client = CosmosClient(self.host, self.master_key)
-                container = client.get_database_client(self.TEST_DATABASE_ID).get_container_client(
-                    self.TEST_CONTAINER_ID)
-                for _ in range(5):
-                    # Clear cache and immediately read
-                    client.client_connection._routing_map_provider.clear_cache()
-                    result = container.read_item(f"fi-{worker_id % 3}", partition_key=f"pk-{worker_id % 3}")
-                    assert result["id"] == f"fi-{worker_id % 3}"
-                pass  # sync client cleaned up by GC
+                with CosmosClient(self.host, self.master_key) as client:
+                    container = client.get_database_client(self.TEST_DATABASE_ID).get_container_client(
+                        self.TEST_CONTAINER_ID)
+                    for _ in range(5):
+                        # Clear cache and immediately read
+                        client.client_connection._routing_map_provider.clear_cache()
+                        result = container.read_item(
+                            f"fi-{worker_id % 3}", partition_key=f"pk-{worker_id % 3}")
+                        assert result["id"] == f"fi-{worker_id % 3}"
             except Exception as e:
                 errors.append((worker_id, str(e)))
 
@@ -84,7 +75,7 @@ class TestSharedCacheFaultInjection(unittest.TestCase):
 
     def test_pkrange_readonly_fields_not_corrupted(self):
         """PKRange namedtuple fields are immutable and cannot be accidentally modified."""
-        pk = PKRange(id="0", minInclusive="", maxExclusive="FF", parents=[])
+        pk = PKRange(id="0", minInclusive="", maxExclusive="FF", parents=())
 
         # Namedtuple fields are read-only
         with self.assertRaises(AttributeError):
@@ -107,18 +98,15 @@ class TestSharedCacheFaultInjection(unittest.TestCase):
         errors = []
 
         def reader():
-            client = CosmosClient(self.host, self.master_key)
-            container = client.get_database_client(self.TEST_DATABASE_ID).get_container_client(
-                self.TEST_CONTAINER_ID)
-            try:
+            with CosmosClient(self.host, self.master_key) as client:
+                container = client.get_database_client(self.TEST_DATABASE_ID).get_container_client(
+                    self.TEST_CONTAINER_ID)
                 while not stop_event.is_set():
                     try:
                         container.read_item("fi-0", partition_key="pk-0")
                     except Exception as e:
                         errors.append(str(e))
                         break
-            finally:
-                pass  # sync client cleaned up by GC
 
         # Start readers
         threads = [threading.Thread(target=reader) for _ in range(3)]

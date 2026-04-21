@@ -10,13 +10,11 @@ and that PKRange namedtuples are compatible with all CRUD and query operations.
 
 import unittest
 import uuid
-from unittest.mock import patch
 
 import pytest
 
 import test_config
-from azure.cosmos import CosmosClient, PartitionKey
-from azure.cosmos._routing.routing_range import PKRange
+from azure.cosmos import CosmosClient
 from azure.cosmos._routing.routing_map_provider import (
     PartitionKeyRangeCache,
     _shared_routing_map_cache,
@@ -50,6 +48,14 @@ class TestSharedCacheIntegration(unittest.TestCase):
                 cls.container.delete_item(f"shared-cache-item-{i}", partition_key=f"pk-{i % 5}")
             except Exception:
                 pass
+        # Release the class-scoped client and clear the module-level shared routing-map
+        # cache so subsequent test modules in the same process start from a clean slate.
+        try:
+            cls.client1.__exit__(None, None, None)
+        except Exception:
+            pass
+        with _shared_cache_lock:
+            _shared_routing_map_cache.clear()
 
     def _get_routing_provider(self, client):
         return client.client_connection._routing_map_provider
@@ -59,8 +65,7 @@ class TestSharedCacheIntegration(unittest.TestCase):
 
     def test_multi_client_shared_cache_reads(self):
         """Two clients to the same endpoint share the routing map after the first read."""
-        client2 = CosmosClient(self.host, self.master_key)
-        try:
+        with CosmosClient(self.host, self.master_key) as client2:
             container2 = client2.get_database_client(self.TEST_DATABASE_ID).get_container_client(
                 self.TEST_CONTAINER_ID)
 
@@ -76,13 +81,10 @@ class TestSharedCacheIntegration(unittest.TestCase):
             # Client2 can read without triggering a new _ReadPartitionKeyRanges
             result = container2.read_item("shared-cache-item-1", partition_key="pk-1")
             self.assertEqual(result["id"], "shared-cache-item-1")
-        finally:
-            pass  # sync client cleaned up by GC
 
     def test_multi_client_shared_cache_queries(self):
         """Client2 uses cached routing map populated by client1 for queries."""
-        client2 = CosmosClient(self.host, self.master_key)
-        try:
+        with CosmosClient(self.host, self.master_key) as client2:
             container2 = client2.get_database_client(self.TEST_DATABASE_ID).get_container_client(
                 self.TEST_CONTAINER_ID)
 
@@ -99,8 +101,6 @@ class TestSharedCacheIntegration(unittest.TestCase):
                 enable_cross_partition_query=True
             ))
             self.assertTrue(len(results) > 0)
-        finally:
-            pass  # sync client cleaned up by GC
 
     def test_clear_cache_triggers_repopulation(self):
         """After clear_cache(), the next operation transparently re-populates."""
@@ -120,9 +120,8 @@ class TestSharedCacheIntegration(unittest.TestCase):
         self.assertTrue(len(cache) > 0, "Cache should be re-populated after read")
 
     def test_clear_cache_propagates_to_shared_clients(self):
-        """clear_cache() on client1 creates a new dict; client2 must re-attach on next use."""
-        client2 = CosmosClient(self.host, self.master_key)
-        try:
+        """clear_cache() clears the shared dict in place, preserving identity across clients."""
+        with CosmosClient(self.host, self.master_key) as client2:
             container2 = client2.get_database_client(self.TEST_DATABASE_ID).get_container_client(
                 self.TEST_CONTAINER_ID)
 
@@ -144,14 +143,10 @@ class TestSharedCacheIntegration(unittest.TestCase):
             # Client2 read re-populates
             result = container2.read_item("shared-cache-item-2", partition_key="pk-2")
             self.assertEqual(result["id"], "shared-cache-item-2")
-        finally:
-            pass  # sync client cleaned up by GC
 
     def test_different_endpoints_isolated_with_emulator(self):
         """Emulator client cache is isolated from a different endpoint."""
         # Create a dummy provider for a different endpoint
-        from azure.cosmos._routing.routing_map_provider import PartitionKeyRangeCache
-
         class DummyClient:
             url_connection = "https://other-account.documents.azure.com:443/"
 
