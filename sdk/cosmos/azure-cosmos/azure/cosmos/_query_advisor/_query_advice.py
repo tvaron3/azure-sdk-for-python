@@ -147,5 +147,5 @@ class QueryAdvice:
 
             return cls(entries)
         except (json.JSONDecodeError, ValueError, AttributeError) as e:
-            _LOGGER.warning("Failed to parse query advice from response header: %s", e)
+            _LOGGER.debug("Failed to parse query advice from response header: %s", e)
             return None
