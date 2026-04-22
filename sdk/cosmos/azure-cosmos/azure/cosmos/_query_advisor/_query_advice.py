@@ -151,5 +151,5 @@ class QueryAdvice:
             # the exception object), then capture full detail at debug.
             _LOGGER.warning(
                 "Could not parse query advice from response header (advice will be skipped).")
-            _LOGGER.debug("Query advice parse error: %r", e)
+            _LOGGER.debug("Query advice parse error: %r", e, exc_info=True)
             return None
