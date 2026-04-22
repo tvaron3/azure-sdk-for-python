@@ -41,15 +41,43 @@ from ._routing_map_provider_common import (
 if TYPE_CHECKING:
     from .._cosmos_client_connection import CosmosClientConnection
 
-# Shared routing map cache across all clients targeting the same endpoint.
-# All four module-level dicts are keyed by endpoint and protected by
-# ``_shared_cache_lock`` for mutation. Per-collection refresh serialization is
-# handled by the per-endpoint locks in ``_shared_collection_locks`` so that all
-# clients sharing an endpoint single-flight refreshes through the same lock.
+# Module-level shared state, keyed by endpoint URL. All four dicts and the
+# refcount are mutated only while holding ``_shared_cache_lock``. Sharing across
+# every CosmosClient that targets the same endpoint is what eliminates the
+# per-client duplicate copies of the routing map (the memory win driving this
+# change), and what lets concurrent readers single-flight a single refresh.
+
+# endpoint -> { collection_id -> CollectionRoutingMap }. The actual cached
+# routing maps. The inner dict is shared by every client for that endpoint, so
+# a routing-map populated by one client is immediately visible to all others.
 _shared_routing_map_cache: dict = {}
+
+# endpoint -> { collection_id -> threading.Lock }. Per-collection refresh lock.
+# Concurrent calls to refresh the routing map for the same (endpoint, collection)
+# block on this lock so only one of them issues the network call; the rest read
+# the freshly-populated cache after they wake up.
 _shared_collection_locks: Dict[str, Dict[str, threading.Lock]] = {}
+
+# endpoint -> threading.Lock. Guards the creation of new entries in the inner
+# dict of ``_shared_collection_locks``. Without this, two threads racing on a
+# brand-new collection_id could each create a different Lock object and defeat
+# the single-flight invariant (each thread would wait on its own lock and both
+# would fall through to issue the network refresh).
 _shared_locks_locks: Dict[str, threading.Lock] = {}
+
+# endpoint -> int. Number of live CosmosClient instances using this endpoint.
+# Incremented on PartitionKeyRangeCache construction and decremented on
+# ``clear_cache`` / client close. When the count hits zero we drop the entry
+# from all four dicts so an idle endpoint does not pin memory forever.
 _shared_cache_refcounts: Dict[str, int] = {}
+
+# Process-wide lock guarding all four dicts above. Intentionally a
+# ``threading.Lock`` (not an ``asyncio.Lock``) so the same module-level state
+# can be shared by both the sync ``PartitionKeyRangeCache`` here and its async
+# counterpart in ``aio/routing_map_provider.py`` — the critical sections it
+# protects are dict-level reads/writes only, never network I/O, so blocking
+# briefly on a threading lock from an async context is safe and avoids needing
+# a separate event-loop-bound lock per loop.
 _shared_cache_lock = threading.Lock()
 
 
