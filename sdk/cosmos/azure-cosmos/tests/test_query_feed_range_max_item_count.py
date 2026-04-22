@@ -232,6 +232,41 @@ class TestQueryFeedRangeMaxItemCount(unittest.TestCase):
         self.assertEqual(captured["result"].get("_count"), 5,
                          "_count must be updated alongside Documents")
 
+    def test_truncation_suppresses_continuation_header(self, _mock_get_headers):
+        """When the merged page is truncated, the surfaced continuation token
+        only describes the last inner PK range and would silently skip documents
+        on resume. It must be suppressed on the page that returns to the caller."""
+        client = _build_client_connection()
+        # Each inner POST returns 5 docs and a continuation token.
+        # K=3 -> merged 15 docs, capped at 5 -> truncation occurs.
+        docs, _post_mock, _captured = self._query(
+            client,
+            options={"maxItemCount": 5},
+            post_side_effect=lambda *a, **kw: (
+                _docs(5), {"x-ms-continuation": "inner-token"}
+            ),
+        )
+        self.assertEqual(len(docs), 5)
+        self.assertNotIn("x-ms-continuation", client.last_response_headers,
+                         "continuation header must be stripped on truncation")
+
+    def test_no_truncation_preserves_continuation_header(self, _mock_get_headers):
+        """When the merged page fits within the cap, no truncation happens, so
+        the inner continuation must be left intact (today's pre-fix behavior)."""
+        client = _build_client_connection()
+        docs, _post_mock, _captured = self._query(
+            client,
+            # 3 ranges * 2 docs = 6, cap=10 -> no truncation
+            options={"maxItemCount": 10},
+            post_side_effect=lambda *a, **kw: (
+                _docs(2), {"x-ms-continuation": "inner-token"}
+            ),
+        )
+        self.assertEqual(len(docs), 6)
+        self.assertEqual(client.last_response_headers.get("x-ms-continuation"),
+                         "inner-token",
+                         "continuation must be preserved when no truncation")
+
 
 if __name__ == "__main__":
     unittest.main()

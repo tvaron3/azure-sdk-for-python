@@ -186,3 +186,34 @@ class TestQueryFeedRangeMaxItemCountAsync:
         assert docs == []
         assert "Documents" not in captured["result"]
 
+    async def test_truncation_suppresses_continuation_header(self, _mock_get_headers):
+        """When the merged page is truncated, the surfaced continuation token
+        only describes the last inner PK range and would silently skip
+        documents on resume. It must be stripped from last_response_headers."""
+        client = _build_async_client_connection()
+        docs, _post_mock, _captured = await self._query(
+            client,
+            options={"maxItemCount": 5},
+            post_side_effect=lambda *a, **kw: (
+                _docs(5), {"x-ms-continuation": "inner-token"}
+            ),
+        )
+        assert len(docs) == 5
+        assert "x-ms-continuation" not in client.last_response_headers, \
+            "continuation header must be stripped on truncation"
+
+    async def test_no_truncation_preserves_continuation_header(self, _mock_get_headers):
+        """When the merged page fits within the cap, no truncation happens,
+        so the inner continuation must be left intact."""
+        client = _build_async_client_connection()
+        docs, _post_mock, _captured = await self._query(
+            client,
+            # 3 ranges * 2 docs = 6, cap=10 -> no truncation
+            options={"maxItemCount": 10},
+            post_side_effect=lambda *a, **kw: (
+                _docs(2), {"x-ms-continuation": "inner-token"}
+            ),
+        )
+        assert len(docs) == 6
+        assert client.last_response_headers.get("x-ms-continuation") == "inner-token"
+

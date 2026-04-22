@@ -3227,6 +3227,14 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
                 # correct fix is a composite continuation token spanning all K inner PK
                 # ranges. Until that lands, this branch only delivers a correct *first* page
                 # for multi-range feed_range queries.
+                #
+                # Mitigation for the deferred limitation: when truncation actually
+                # discards documents, the surfaced continuation token would describe
+                # the wrong cursor (it is the last inner range's token, but documents
+                # from earlier ranges and from the truncated tail were dropped). To
+                # avoid silent data loss, we strip the continuation header below when
+                # truncation occurs, so the truncated page is observed as terminal
+                # rather than producing wrong results on resume.
                 max_item_count = options.get("maxItemCount")
                 docs = results.get("Documents")
                 if max_item_count and isinstance(docs, list):
@@ -3240,6 +3248,14 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
                         # Documents list so any downstream consumer that introspects
                         # the merged dict observes a coherent shape.
                         results["_count"] = cap
+                        # The merged page was assembled from multiple inner PK ranges and
+                        # then truncated. The continuation token from the last inner range
+                        # only describes progress for that range, not for the truncated
+                        # tail or for ranges past the cursor, so resuming with it would
+                        # silently skip documents. Until a composite continuation token is
+                        # implemented, suppress the misleading token so callers see the
+                        # truncated page as terminal rather than experiencing data loss.
+                        self.last_response_headers.pop(http_constants.HttpHeaders.Continuation, None)
                 if self.last_response_headers.get(http_constants.HttpHeaders.IndexUtilization) is not None:
                     index_metrics_raw = self.last_response_headers[http_constants.HttpHeaders.IndexUtilization]
                     self.last_response_headers[http_constants.HttpHeaders.IndexUtilization] = (
