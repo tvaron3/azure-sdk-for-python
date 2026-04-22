@@ -7,6 +7,8 @@
 #### Breaking Changes
 
 #### Bugs Fixed
+* Fixed bug where `query_items(feed_range=..., max_item_count=N)` could return up to `K * N` documents per page when the supplied feed range overlapped `K` physical partition key ranges (for example, after a server-side split). The page returned to the caller is now truncated to the requested `max_item_count`.
+  * Known limitation (deferred): when a `feed_range` overlaps multiple PK ranges, only the last inner range's `x-ms-continuation` is surfaced as the page continuation token. Round-tripping that token sends it to every inner range on the next page, which is undefined server-side and can produce duplicates, missing documents, or non-terminating iteration on subsequent pages. A composite continuation token across overlapping inner ranges is tracked separately as a follow-up; until then, only the *first* page of a multi-range `feed_range` query is reliable.
 * Fixed bug where `CosmosClient` construction with AAD credentials would crash at startup if the semantic reranking inference endpoint environment variable was not set, even when semantic reranking was not being used. The inference service is now lazily initialized on first use. See [PR 46243](https://github.com/Azure/azure-sdk-for-python/pull/46243)
 
 #### Other Changes

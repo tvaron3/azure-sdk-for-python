@@ -3408,6 +3408,45 @@ class CosmosClientConnection:  # pylint: disable=too-many-public-methods,too-man
                     response_hook(last_response_headers, partial_result)
             # if the prefix partition query has results lets return it
             if results:
+                # Honor the user-requested page size (maxItemCount) across the K overlapping
+                # inner physical PK ranges. Each inner __Post above honors max_item_count per
+                # range, so the merged result can hold up to K * max_item_count documents.
+                # Truncate to the user-requested cap so a single page never exceeds it.
+                #
+                # NOTE: Use a truthy check (mirrors the contract used by _base.GetHeaders,
+                # which only emits the x-ms-max-item-count header when options['maxItemCount']
+                # is truthy). max_item_count=0/None/missing all mean "use the server default
+                # page size" and must be a no-op here, otherwise we would silently return
+                # empty pages while the server-side default page actually returned data.
+                #
+                # Known limitation (intentionally deferred — tracked separately as a
+                # follow-up: "[Cosmos] feed_range query continuation token replays documents
+                # from non-cursor PK ranges"):
+                # The continuation token surfaced to the caller (last_response_headers
+                # below is the K-th iteration's headers) is only the K-th inner range's
+                # x-ms-continuation. When the caller round-trips that token on the next
+                # page, __QueryFeed re-resolves the K overlapping ranges and sends the
+                # same caller-supplied continuation to every inner POST. Range K-1's
+                # continuation against ranges 0..K-2 is undefined server-side (may error,
+                # may restart from the beginning, may return undefined slices), so callers
+                # paginating a feed_range that overlaps multiple PK ranges may observe
+                # duplicates, missing documents, or non-terminating iteration. The correct
+                # fix is a composite continuation token spanning all K inner PK ranges.
+                # Until that lands, this branch only delivers a correct *first* page for
+                # multi-range feed_range queries.
+                max_item_count = options.get("maxItemCount")
+                docs = results.get("Documents")
+                if max_item_count and isinstance(docs, list):
+                    try:
+                        cap = int(max_item_count)
+                    except (TypeError, ValueError):
+                        cap = 0
+                    if 0 < cap < len(docs):
+                        results["Documents"] = docs[:cap]
+                        # Keep the internal _count field consistent with the truncated
+                        # Documents list so any downstream consumer that introspects
+                        # the merged dict observes a coherent shape.
+                        results["_count"] = cap
                 if last_response_headers.get(http_constants.HttpHeaders.IndexUtilization) is not None:
                     index_metrics_raw = last_response_headers[http_constants.HttpHeaders.IndexUtilization]
                     last_response_headers[http_constants.HttpHeaders.IndexUtilization] = (
