@@ -28,6 +28,7 @@ from typing import Dict, Any, Optional, List, TYPE_CHECKING
 from azure.core.utils import CaseInsensitiveDict
 from .. import _base, http_constants
 from .collection_routing_map import CollectionRoutingMap
+from ..exceptions import CosmosHttpResponseError
 from ._routing_map_provider_common import (
     prepare_fetch_options_and_headers,
     process_fetched_ranges,
@@ -212,16 +213,20 @@ class PartitionKeyRangeCache(object):
             )
 
             ranges: List[Dict[str, Any]] = []
-            # Note: CosmosHttpResponseError raised by the partition-key range read is
-            # propagated unchanged to the caller, which is responsible for handling and
-            # logging. We deliberately do not log the exception here to comply with the
-            # do-not-log-exceptions-if-not-debug and do-not-log-raised-errors guidelines.
-            pk_range_generator = self._document_client._ReadPartitionKeyRanges(
-                collection_link,
-                change_feed_options,
-                **request_kwargs
-            )
-            ranges.extend(list(pk_range_generator))
+            try:
+                pk_range_generator = self._document_client._ReadPartitionKeyRanges(
+                    collection_link,
+                    change_feed_options,
+                    **request_kwargs
+                )
+                ranges.extend(pk_range_generator)
+            except CosmosHttpResponseError:
+                # Preserve collection context at debug level for diagnostics; the
+                # exception itself is propagated unchanged for the caller to handle.
+                logger.debug(
+                    "Failed to read partition key ranges for collection '%s'.",
+                    collection_link, exc_info=True)
+                raise
 
             new_etag = response_headers.get(http_constants.HttpHeaders.ETag)
 

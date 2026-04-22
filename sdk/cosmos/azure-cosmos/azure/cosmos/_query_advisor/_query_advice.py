@@ -147,5 +147,9 @@ class QueryAdvice:
 
             return cls(entries)
         except (json.JSONDecodeError, ValueError, AttributeError) as e:
-            _LOGGER.debug("Failed to parse query advice from response header: %s", e)
+            # Surface contract drift / unexpected header shape at warning level (without
+            # the exception object), then capture full detail at debug.
+            _LOGGER.warning(
+                "Could not parse query advice from response header (advice will be skipped).")
+            _LOGGER.debug("Query advice parse error: %r", e)
             return None

@@ -115,11 +115,8 @@ class ReadItemsHelperSync:
                 chunk_results, chunk_ru_charge = future.result()
                 indexed_results.extend(chunk_results)
                 total_request_charge += chunk_ru_charge
-        except (Exception, KeyboardInterrupt) as e:
-            # Log at debug level only — exception is re-raised below so callers can log
-            # full details. Avoid logging exception detail at error/warning level
-            # (azure-pylint-guidelines-checker rule do-not-log-exceptions-if-not-debug).
-            self.logger.debug("Error in query execution: %s", str(e))
+        except (Exception, KeyboardInterrupt):
+            # Exception is re-raised below; caller is responsible for logging detail.
             # Cancel all pending futures
             for f in futures:
                 if not f.done():
