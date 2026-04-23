@@ -219,13 +219,11 @@ class PartitionKeyRangeCache(object):
                     change_feed_options,
                     **request_kwargs
                 )
-                ranges.extend(pk_range_generator)
-            except CosmosHttpResponseError:
-                # Preserve collection context at debug level for diagnostics; the
-                # exception itself is propagated unchanged for the caller to handle.
-                logger.debug(
-                    "Failed to read partition key ranges for collection '%s'.",
-                    collection_link, exc_info=True)
+                ranges.extend(list(pk_range_generator))
+
+            except CosmosHttpResponseError as e:
+                logger.error(  # pylint: disable=do-not-log-exceptions-if-not-debug,do-not-log-raised-errors
+                    "Failed to read partition key ranges for collection '%s': %s", collection_link, e)
                 raise
 
             new_etag = response_headers.get(http_constants.HttpHeaders.ETag)

@@ -191,13 +191,11 @@ class _GlobalEndpointManager(object): # pylint: disable=too-many-instance-attrib
             def runner():
                 try:
                     target(**kwargs)
-                except Exception:  # pylint: disable=broad-exception-caught
-                    # Background failures must not crash the foreground thread.
-                    # Emit an operator-visible warning without exception detail, plus a
-                    # debug-level entry that carries the full traceback.
-                    logger.warning(
-                        "Cosmos endpoint health-check refresh failed (see debug logs for detail).")
-                    logger.debug("Health check task failed.", exc_info=True)
+                except Exception as exception: #pylint: disable=broad-exception-caught
+                    # background failures should not crash main thread
+                    # Intentionally swallow to avoid affecting foreground; logging could be added.
+                    logger.error(  # pylint: disable=do-not-log-exceptions-if-not-debug
+                        "Health check task failed: %s", exception, exc_info=True)
             t = threading.Thread(target=runner, name="cosmos-endpoint-refresh", daemon=True)
             self._refresh_thread = t
             t.start()

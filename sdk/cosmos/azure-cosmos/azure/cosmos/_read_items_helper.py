@@ -115,8 +115,9 @@ class ReadItemsHelperSync:
                 chunk_results, chunk_ru_charge = future.result()
                 indexed_results.extend(chunk_results)
                 total_request_charge += chunk_ru_charge
-        except (Exception, KeyboardInterrupt):
-            # Exception is re-raised below; caller is responsible for logging detail.
+        except (Exception, KeyboardInterrupt) as e:
+            self.logger.error(  # pylint: disable=do-not-log-exceptions-if-not-debug,do-not-log-raised-errors
+                "Error in query execution: %s", str(e))
             # Cancel all pending futures
             for f in futures:
                 if not f.done():

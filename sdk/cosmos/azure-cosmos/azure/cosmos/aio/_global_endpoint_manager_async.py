@@ -150,17 +150,9 @@ class _GlobalEndpointManager(object): # pylint: disable=too-many-instance-attrib
             try:
                 await self.refresh_task
                 self.refresh_task = None
-            except Exception:  # pylint: disable=broad-exception-caught
-                # Background refresh failures must not affect foreground request flow.
-                # Emit an operator-visible warning without exception detail, plus a
-                # debug-level entry that carries the full traceback.
-                #
-                # asyncio.CancelledError is intentionally NOT caught here: since
-                # Python 3.8 it derives from BaseException (not Exception), so it
-                # propagates naturally and the surrounding task is properly cancelled.
-                logger.warning(
-                    "Cosmos endpoint health-check refresh failed (see debug logs for detail).")
-                logger.debug("Health check task failed.", exc_info=True)
+            except (Exception, asyncio.CancelledError) as exception: #pylint: disable=broad-exception-caught
+                logger.error(  # pylint: disable=do-not-log-exceptions-if-not-debug
+                    "Health check task failed: %s", exception, exc_info=True)
         if current_time_millis() - self.last_refresh_time > self.refresh_time_interval_in_ms:
             self.refresh_needed = True
         if self.refresh_needed:
