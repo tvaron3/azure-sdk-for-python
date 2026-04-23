@@ -144,15 +144,21 @@ class PartitionKeyRangeCache(object):
     def clear_cache(self):
         """Clear the shared routing map cache for this endpoint.
 
-        Uses in-place ``.clear()`` to preserve all client references to the
-        same dict and the same per-collection lock dict, so concurrent clients
-        sharing the endpoint continue to single-flight through the same locks.
+        Uses in-place ``.clear()`` on the routing-map dict to preserve all
+        client references to the same dict object, so concurrent clients
+        sharing the endpoint continue to share a single cache instance.
+
+        The per-collection locks dict is intentionally **not** cleared here:
+        an in-flight ``_fetch_routing_map`` caller holds one of those locks
+        and will write its result into the (now-empty) shared cache when it
+        completes. Keeping the lock in place ensures that any concurrent
+        arrival serialises behind the in-flight refresh (single-flight
+        invariant) instead of racing it with a fresh lock. The locks dict
+        is evicted in ``release()`` once the endpoint refcount hits zero.
         """
-        with self._locks_lock:
-            with _shared_cache_lock:
-                if self._endpoint in _shared_routing_map_cache:
-                    _shared_routing_map_cache[self._endpoint].clear()
-            self._collection_locks.clear()
+        with _shared_cache_lock:
+            if self._endpoint in _shared_routing_map_cache:
+                _shared_routing_map_cache[self._endpoint].clear()
 
     def release(self) -> None:
         """Decrement the per-endpoint refcount and evict shared state at zero.
