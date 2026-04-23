@@ -55,18 +55,24 @@ if TYPE_CHECKING:
 # a routing-map populated by one client is immediately visible to all others.
 _shared_routing_map_cache: dict = {}
 
-# endpoint -> { collection_id -> asyncio.Lock }. Per-collection refresh lock.
-# Concurrent coroutines refreshing the routing map for the same (endpoint,
-# collection) await on this lock so only one of them issues the network call;
-# the rest read the freshly-populated cache after they resume.
-_shared_collection_locks: Dict[str, Dict[str, asyncio.Lock]] = {}
+# endpoint -> { (loop_id, collection_id) -> asyncio.Lock }. Per-collection
+# refresh lock, scoped to the asyncio event loop that owns it. We key by loop
+# id (``id(asyncio.get_running_loop())``) because ``asyncio.Lock`` instances
+# bind to the loop on first ``acquire()`` (CPython 3.10+) and raise
+# ``RuntimeError: ... bound to a different event loop`` if reused from a
+# different running loop. Single-flighting only needs to be per-loop in
+# practice — coroutines on different loops have different connection pools
+# and are effectively independent clients.
+_shared_collection_locks: Dict[str, Dict[tuple, asyncio.Lock]] = {}
 
-# endpoint -> asyncio.Lock. Guards the creation of new entries in the inner
-# dict of ``_shared_collection_locks``. Without this, two coroutines racing on
-# a brand-new collection_id could each create a different Lock object and
-# defeat the single-flight invariant (each coroutine would await its own lock
-# and both would fall through to issue the network refresh).
-_shared_locks_locks: Dict[str, asyncio.Lock] = {}
+# endpoint -> threading.Lock. Guards the creation of new entries in the inner
+# dict of ``_shared_collection_locks``. Was an ``asyncio.Lock`` previously,
+# but its critical sections are pure dict reads/writes (no await), so a
+# ``threading.Lock`` works identically and avoids the same loop-binding
+# hazard described above. Without this guard, two coroutines racing on a
+# brand-new (loop, collection_id) could each create a different Lock object
+# and defeat the single-flight invariant.
+_shared_locks_locks: Dict[str, threading.Lock] = {}
 
 # endpoint -> int. Number of live async CosmosClient instances using this
 # endpoint. Incremented on PartitionKeyRangeCache construction and decremented
@@ -139,12 +145,12 @@ class PartitionKeyRangeCache(object):
             if self._endpoint not in _shared_routing_map_cache:
                 _shared_routing_map_cache[self._endpoint] = {}
                 _shared_collection_locks[self._endpoint] = {}
-                _shared_locks_locks[self._endpoint] = asyncio.Lock()
+                _shared_locks_locks[self._endpoint] = threading.Lock()
                 _shared_cache_refcounts[self._endpoint] = 0
             _shared_cache_refcounts[self._endpoint] += 1
             self._collection_routing_map_by_item = _shared_routing_map_cache[self._endpoint]
-            self._collection_locks: Dict[str, asyncio.Lock] = _shared_collection_locks[self._endpoint]
-            self._locks_lock: asyncio.Lock = _shared_locks_locks[self._endpoint]
+            self._collection_locks: Dict[tuple, asyncio.Lock] = _shared_collection_locks[self._endpoint]
+            self._locks_lock: threading.Lock = _shared_locks_locks[self._endpoint]
 
     async def clear_cache(self):
         """Clear the shared routing map cache for this endpoint.
@@ -153,7 +159,7 @@ class PartitionKeyRangeCache(object):
         same dict and the same per-collection lock dict, so concurrent clients
         sharing the endpoint continue to single-flight through the same locks.
         """
-        async with self._locks_lock:
+        with self._locks_lock:
             with _shared_cache_lock:
                 if self._endpoint in _shared_routing_map_cache:
                     _shared_routing_map_cache[self._endpoint].clear()
@@ -192,16 +198,23 @@ class PartitionKeyRangeCache(object):
             pass
 
     async def _get_lock_for_collection(self, collection_id: str) -> asyncio.Lock:
-        """Safely gets or creates a lock for a given collection ID.
+        """Safely gets or creates a lock for a given (loop, collection) pair.
+
+        Scoped to the running event loop so the returned ``asyncio.Lock`` is
+        always bound to the loop that will await it — see the comment on
+        ``_shared_collection_locks`` for the loop-binding rationale.
 
         :param str collection_id: The ID of the collection.
-        :return: An asyncio.Lock specific to the collection ID.
+        :return: An asyncio.Lock specific to the (loop, collection) pair.
         :rtype: asyncio.Lock
         """
-        async with self._locks_lock:
-            if collection_id not in self._collection_locks:
-                self._collection_locks[collection_id] = asyncio.Lock()
-            return self._collection_locks[collection_id]
+        key = (id(asyncio.get_running_loop()), collection_id)
+        with self._locks_lock:
+            lock = self._collection_locks.get(key)
+            if lock is None:
+                lock = asyncio.Lock()
+                self._collection_locks[key] = lock
+            return lock
 
     def _is_cache_stale(
             self,
