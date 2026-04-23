@@ -5,6 +5,7 @@
         "perfdb",
         "perfresults",
         "pkrange",
-        "ppcb"
+        "ppcb",
+        "toctou"
     ]
 }

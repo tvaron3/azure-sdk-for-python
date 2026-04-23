@@ -55,6 +55,10 @@ class PKRange(_PKRangeBase):
         use ``key in pkr`` as a single truthy presence check (the same
         expression that earlier worked against raw service dicts where the
         field was simply missing when empty).
+
+        :param str key: The field name to check.
+        :returns: True if the field is present and has a non-empty value.
+        :rtype: bool
         """
         if key not in self._fields:
             return False

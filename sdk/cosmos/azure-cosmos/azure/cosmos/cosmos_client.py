@@ -273,7 +273,7 @@ class CosmosClient:  # pylint: disable=client-accepts-api-version-keyword
         endpoint (see ``_routing.routing_map_provider`` module docstring).
         Safe to call multiple times.
         """
-        self.__exit__(None, None, None)
+        self.__exit__(None, None, None)  # pylint: disable=specify-parameter-names-in-call
 
     @classmethod
     def from_connection_string(
