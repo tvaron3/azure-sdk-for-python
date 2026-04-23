@@ -66,14 +66,16 @@ def _reset_shared_pk_range_cache():
     from azure.cosmos._routing import routing_map_provider as _sync_pmp
     from azure.cosmos._routing.aio import routing_map_provider as _async_pmp
 
-    with _sync_pmp._shared_cache_lock:  # pylint: disable=protected-access
-        _sync_pmp._shared_routing_map_cache.clear()  # pylint: disable=protected-access
-        _sync_pmp._shared_collection_locks.clear()  # pylint: disable=protected-access
-        _sync_pmp._shared_locks_locks.clear()  # pylint: disable=protected-access
-        _sync_pmp._shared_cache_refcounts.clear()  # pylint: disable=protected-access
-
-    with _async_pmp._shared_cache_lock:  # pylint: disable=protected-access
-        _async_pmp._shared_routing_map_cache.clear()  # pylint: disable=protected-access
-        _async_pmp._shared_collection_locks.clear()  # pylint: disable=protected-access
-        _async_pmp._shared_locks_locks.clear()  # pylint: disable=protected-access
-        _async_pmp._shared_cache_refcounts.clear()  # pylint: disable=protected-access
+    # Clear the *contents* of each per-endpoint cache dict, not the registry
+    # itself. Long-lived test fixtures (class-level CosmosClient) hold strong
+    # references to the inner dicts via ``_collection_routing_map_by_item``;
+    # if we ``.clear()`` the outer registry, a freshly-constructed client for
+    # the same endpoint creates a brand-new inner dict and the dict-identity
+    # invariant that test_shared_cache_integration relies on is broken.
+    # Same reasoning for ``_shared_collection_locks``.
+    for pmp in (_sync_pmp, _async_pmp):
+        with pmp._shared_cache_lock:  # pylint: disable=protected-access
+            for cache in pmp._shared_routing_map_cache.values():  # pylint: disable=protected-access
+                cache.clear()
+            for locks in pmp._shared_collection_locks.values():  # pylint: disable=protected-access
+                locks.clear()
