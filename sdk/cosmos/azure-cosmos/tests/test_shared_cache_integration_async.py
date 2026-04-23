@@ -50,8 +50,18 @@ class TestSharedCacheIntegrationAsync(unittest.IsolatedAsyncioTestCase):
         await self.client1.close()
         # Release module-level shared routing-map state between async tests so
         # the test order cannot affect cache contents observed by a later test.
+        # Clear ALL four shared-cache globals (not just the routing-map dict)
+        # to keep refcount/lock state consistent.
+        from azure.cosmos._routing.aio.routing_map_provider import (
+            _shared_collection_locks,
+            _shared_locks_locks,
+            _shared_cache_refcounts,
+        )
         with _shared_cache_lock:
             _shared_routing_map_cache.pop(self.host, None)
+            _shared_collection_locks.pop(self.host, None)
+            _shared_locks_locks.pop(self.host, None)
+            _shared_cache_refcounts.pop(self.host, None)
 
     def _get_routing_provider(self, client):
         return client.client_connection._routing_map_provider

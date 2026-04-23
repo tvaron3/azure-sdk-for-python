@@ -31,8 +31,19 @@ class MockClient:
 class TestSharedPartitionKeyRangeCacheAsync(unittest.IsolatedAsyncioTestCase):
 
     def tearDown(self):
+        # Wipe ALL four shared-cache globals between unit tests, not just
+        # the routing-map dict, so refcount and lock state stay consistent
+        # for tests that exercise lifecycle behavior.
+        from azure.cosmos._routing.aio.routing_map_provider import (
+            _shared_collection_locks,
+            _shared_locks_locks,
+            _shared_cache_refcounts,
+        )
         with _shared_cache_lock:
             _shared_routing_map_cache.clear()
+            _shared_collection_locks.clear()
+            _shared_locks_locks.clear()
+            _shared_cache_refcounts.clear()
 
     async def test_same_endpoint_shares_cache_async(self):
         """Async: Two caches with the same endpoint share the same dict."""
@@ -90,6 +101,76 @@ class TestSharedPartitionKeyRangeCacheAsync(unittest.IsolatedAsyncioTestCase):
         await cache1.clear_cache()
         self.assertNotIn("coll1", cache1._collection_routing_map_by_item)
         self.assertIn("coll2", cache2._collection_routing_map_by_item)
+
+
+
+
+@pytest.mark.cosmosEmulator
+class TestSharedPartitionKeyRangeCacheLifecycleAsync(unittest.IsolatedAsyncioTestCase):
+    """Async refcount and release() lifecycle tests."""
+
+    def tearDown(self):
+        from azure.cosmos._routing.aio.routing_map_provider import (
+            _shared_collection_locks,
+            _shared_locks_locks,
+            _shared_cache_refcounts,
+        )
+        with _shared_cache_lock:
+            _shared_routing_map_cache.clear()
+            _shared_collection_locks.clear()
+            _shared_locks_locks.clear()
+            _shared_cache_refcounts.clear()
+
+    def _refcount(self, endpoint):
+        from azure.cosmos._routing.aio.routing_map_provider import _shared_cache_refcounts
+        return _shared_cache_refcounts.get(endpoint, 0)
+
+    async def test_construct_and_release_async(self):
+        ep = "https://async-lifecycle1.documents.azure.com:443/"
+        self.assertEqual(self._refcount(ep), 0)
+        c1 = PartitionKeyRangeCache(MockClient(ep))
+        c2 = PartitionKeyRangeCache(MockClient(ep))
+        self.assertEqual(self._refcount(ep), 2)
+        c1.release()
+        self.assertEqual(self._refcount(ep), 1)
+        c2.release()
+        self.assertEqual(self._refcount(ep), 0)
+
+    async def test_release_evicts_at_zero_async(self):
+        from azure.cosmos._routing.aio.routing_map_provider import (
+            _shared_collection_locks,
+            _shared_locks_locks,
+            _shared_cache_refcounts,
+        )
+        ep = "https://async-lifecycle2.documents.azure.com:443/"
+        c1 = PartitionKeyRangeCache(MockClient(ep))
+        for d in (_shared_routing_map_cache, _shared_collection_locks,
+                  _shared_locks_locks, _shared_cache_refcounts):
+            self.assertIn(ep, d)
+        c1.release()
+        for d in (_shared_routing_map_cache, _shared_collection_locks,
+                  _shared_locks_locks, _shared_cache_refcounts):
+            self.assertNotIn(ep, d)
+
+    async def test_release_is_idempotent_async(self):
+        ep = "https://async-lifecycle3.documents.azure.com:443/"
+        c1 = PartitionKeyRangeCache(MockClient(ep))
+        c2 = PartitionKeyRangeCache(MockClient(ep))
+        c1.release()
+        c1.release()
+        c1.release()
+        self.assertEqual(self._refcount(ep), 1)
+        # c2 entry retained
+        self.assertIn(ep, _shared_routing_map_cache)
+        del c2
+
+    async def test_clear_cache_does_not_change_refcount_async(self):
+        ep = "https://async-lifecycle4.documents.azure.com:443/"
+        c1 = PartitionKeyRangeCache(MockClient(ep))
+        before = self._refcount(ep)
+        await c1.clear_cache()
+        self.assertEqual(self._refcount(ep), before)
+        self.assertIn(ep, _shared_routing_map_cache)
 
 
 if __name__ == "__main__":

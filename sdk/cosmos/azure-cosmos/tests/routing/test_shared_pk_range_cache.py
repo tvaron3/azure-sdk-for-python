@@ -11,6 +11,8 @@ from azure.cosmos._routing.routing_map_provider import (
     PartitionKeyRangeCache,
     _shared_routing_map_cache,
     _shared_cache_lock,
+    _shared_collection_locks,
+    _shared_locks_locks,
 )
 
 
@@ -23,8 +25,19 @@ class MockClient:
 class TestSharedPartitionKeyRangeCache(unittest.TestCase):
 
     def tearDown(self):
+        # Wipe ALL four shared-cache globals between unit tests, not just
+        # the routing-map dict, so refcount and lock state stay consistent
+        # for tests that exercise lifecycle behavior.
+        from azure.cosmos._routing.routing_map_provider import (
+            _shared_collection_locks,
+            _shared_locks_locks,
+            _shared_cache_refcounts,
+        )
         with _shared_cache_lock:
             _shared_routing_map_cache.clear()
+            _shared_collection_locks.clear()
+            _shared_locks_locks.clear()
+            _shared_cache_refcounts.clear()
 
     def test_same_endpoint_shares_cache(self):
         c1 = MockClient("https://account1.documents.azure.com:443/")
@@ -118,6 +131,151 @@ class TestSharedPartitionKeyRangeCache(unittest.TestCase):
     def test_range_applies_upper_when_lowercase(self):
         r = Range("05c1c9cd", "05c1d9cd", True, False)
         self.assertEqual(r.min, "05C1C9CD")
+
+
+
+
+@pytest.mark.cosmosEmulator
+class TestSharedPartitionKeyRangeCacheLifecycle(unittest.TestCase):
+    """Refcount and release() lifecycle tests for the process-global cache."""
+
+    def tearDown(self):
+        # Defensive: wipe all four globals after every test in this class.
+        from azure.cosmos._routing.routing_map_provider import (
+            _shared_collection_locks,
+            _shared_locks_locks,
+            _shared_cache_refcounts,
+        )
+        with _shared_cache_lock:
+            _shared_routing_map_cache.clear()
+            _shared_collection_locks.clear()
+            _shared_locks_locks.clear()
+            _shared_cache_refcounts.clear()
+
+    def _refcount(self, endpoint):
+        from azure.cosmos._routing.routing_map_provider import _shared_cache_refcounts
+        return _shared_cache_refcounts.get(endpoint, 0)
+
+    def test_construct_increments_refcount(self):
+        ep = "https://lifecycle1.documents.azure.com:443/"
+        self.assertEqual(self._refcount(ep), 0)
+        c1 = PartitionKeyRangeCache(MockClient(ep))
+        self.assertEqual(self._refcount(ep), 1)
+        c2 = PartitionKeyRangeCache(MockClient(ep))
+        self.assertEqual(self._refcount(ep), 2)
+        del c1, c2  # avoid unused warnings
+
+    def test_release_decrements_refcount(self):
+        ep = "https://lifecycle2.documents.azure.com:443/"
+        c1 = PartitionKeyRangeCache(MockClient(ep))
+        c2 = PartitionKeyRangeCache(MockClient(ep))
+        self.assertEqual(self._refcount(ep), 2)
+        c1.release()
+        self.assertEqual(self._refcount(ep), 1)
+        c2.release()
+        self.assertEqual(self._refcount(ep), 0)
+
+    def test_release_evicts_at_zero(self):
+        from azure.cosmos._routing.routing_map_provider import (
+            _shared_collection_locks,
+            _shared_locks_locks,
+            _shared_cache_refcounts,
+        )
+        ep = "https://lifecycle3.documents.azure.com:443/"
+        c1 = PartitionKeyRangeCache(MockClient(ep))
+        # All four dicts have an entry for the endpoint.
+        self.assertIn(ep, _shared_routing_map_cache)
+        self.assertIn(ep, _shared_collection_locks)
+        self.assertIn(ep, _shared_locks_locks)
+        self.assertIn(ep, _shared_cache_refcounts)
+        c1.release()
+        # After last release, all four are evicted.
+        self.assertNotIn(ep, _shared_routing_map_cache)
+        self.assertNotIn(ep, _shared_collection_locks)
+        self.assertNotIn(ep, _shared_locks_locks)
+        self.assertNotIn(ep, _shared_cache_refcounts)
+
+    def test_release_does_not_evict_with_other_clients(self):
+        ep = "https://lifecycle4.documents.azure.com:443/"
+        c1 = PartitionKeyRangeCache(MockClient(ep))
+        c2 = PartitionKeyRangeCache(MockClient(ep))
+        c1.release()
+        # Refcount drops to 1, entries remain for c2.
+        self.assertEqual(self._refcount(ep), 1)
+        self.assertIn(ep, _shared_routing_map_cache)
+        # c2 still references the same shared dict (identity preserved).
+        self.assertIs(c2._collection_routing_map_by_item,
+                      _shared_routing_map_cache[ep])
+
+    def test_release_is_idempotent(self):
+        """Sequential double-release on the same instance does not double-decrement."""
+        ep = "https://lifecycle5.documents.azure.com:443/"
+        c1 = PartitionKeyRangeCache(MockClient(ep))
+        c2 = PartitionKeyRangeCache(MockClient(ep))
+        self.assertEqual(self._refcount(ep), 2)
+        c1.release()
+        c1.release()  # second call must be a no-op
+        c1.release()
+        self.assertEqual(self._refcount(ep), 1)
+        # c2's entries must remain.
+        self.assertIn(ep, _shared_routing_map_cache)
+
+    def test_concurrent_release_does_not_double_decrement(self):
+        """TOCTOU regression: two threads racing release() decrement at most once.
+
+        Without the fix to move the ``_released`` check inside the shared
+        cache lock, two concurrent callers (e.g. ``__exit__`` racing
+        ``__del__``) can both pass the early-return guard before either
+        sets the flag, producing a double decrement.
+        """
+        import threading
+        ep = "https://lifecycle6.documents.azure.com:443/"
+        # Hold an extra refcount via c_keep so a double-decrement bug would
+        # observably wrong-evict the endpoint (refcount would go to -1 and
+        # the entry would be popped).
+        c_keep = PartitionKeyRangeCache(MockClient(ep))
+        c_target = PartitionKeyRangeCache(MockClient(ep))
+        self.assertEqual(self._refcount(ep), 2)
+
+        barrier = threading.Barrier(2)
+
+        def go():
+            barrier.wait()
+            c_target.release()
+
+        threads = [threading.Thread(target=go) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=5)
+
+        # Refcount must still be 1 (only c_keep alive).
+        self.assertEqual(self._refcount(ep), 1)
+        self.assertIn(ep, _shared_routing_map_cache)
+        # c_keep still references the same shared dict.
+        self.assertIs(c_keep._collection_routing_map_by_item,
+                      _shared_routing_map_cache[ep])
+
+    def test_del_fallback_releases(self):
+        """``__del__`` decrements refcount when client teardown was skipped."""
+        import gc
+        ep = "https://lifecycle7.documents.azure.com:443/"
+        c1 = PartitionKeyRangeCache(MockClient(ep))
+        self.assertEqual(self._refcount(ep), 1)
+        del c1
+        gc.collect()
+        # __del__ runs release() → refcount hits 0 → endpoint evicted.
+        self.assertEqual(self._refcount(ep), 0)
+        self.assertNotIn(ep, _shared_routing_map_cache)
+
+    def test_clear_cache_does_not_change_refcount(self):
+        ep = "https://lifecycle8.documents.azure.com:443/"
+        c1 = PartitionKeyRangeCache(MockClient(ep))
+        before = self._refcount(ep)
+        c1.clear_cache()
+        self.assertEqual(self._refcount(ep), before)
+        # Endpoint still present.
+        self.assertIn(ep, _shared_routing_map_cache)
 
 
 if __name__ == "__main__":

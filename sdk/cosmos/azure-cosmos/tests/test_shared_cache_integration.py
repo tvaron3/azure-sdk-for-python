@@ -54,14 +54,33 @@ class TestSharedCacheIntegration(unittest.TestCase):
             cls.client1.__exit__(None, None, None)
         except Exception:
             pass
+        # Wipe ALL four shared-cache globals so subsequent test modules
+        # observe a clean process state — not just the routing-map dict.
+        from azure.cosmos._routing.routing_map_provider import (
+            _shared_collection_locks,
+            _shared_locks_locks,
+            _shared_cache_refcounts,
+        )
         with _shared_cache_lock:
             _shared_routing_map_cache.clear()
+            _shared_collection_locks.clear()
+            _shared_locks_locks.clear()
+            _shared_cache_refcounts.clear()
 
     def _get_routing_provider(self, client):
         return client.client_connection._routing_map_provider
 
     def _get_cache_dict(self, client):
         return self._get_routing_provider(client)._collection_routing_map_by_item
+
+    def _populate_cache(self, client, container):
+        """Force PK range cache population by directly calling the routing-map provider.
+
+        This avoids relying on incidental population by particular query
+        execution paths, which are an implementation detail of the SDK.
+        """
+        provider = self._get_routing_provider(client)
+        provider.get_routing_map(container.container_link, feed_options=None)
 
     def test_multi_client_shared_cache_reads(self):
         """Two clients to the same endpoint share the routing map after the first read."""
@@ -88,12 +107,13 @@ class TestSharedCacheIntegration(unittest.TestCase):
             container2 = client2.get_database_client(self.TEST_DATABASE_ID).get_container_client(
                 self.TEST_CONTAINER_ID)
 
-            # Client1 query populates the cache
-            list(self.container.query_items("SELECT * FROM c", enable_cross_partition_query=True))
+            # Populate the routing-map cache deterministically (mirror the async
+            # sibling test). Asserting on incidental population from a
+            # particular query path is fragile.
+            self._populate_cache(self.client1, self.container)
 
-            # Verify cache is populated
             cache = self._get_cache_dict(self.client1)
-            self.assertTrue(len(cache) > 0, "Cache should be populated after query")
+            self.assertTrue(len(cache) > 0, "Cache should be populated after routing-map fetch")
 
             # Client2 query should use the cached routing map
             results = list(container2.query_items(

@@ -74,19 +74,23 @@ _shared_collection_locks: Dict[str, Dict[tuple, asyncio.Lock]] = {}
 # and defeat the single-flight invariant.
 _shared_locks_locks: Dict[str, threading.Lock] = {}
 
-# endpoint -> int. Number of live async CosmosClient instances using this
-# endpoint. Incremented on PartitionKeyRangeCache construction and decremented
-# on ``clear_cache`` / client close. When the count hits zero we drop the
-# entry from all four dicts so an idle endpoint does not pin memory forever.
+# endpoint -> int. Number of live async ``PartitionKeyRangeCache`` instances
+# using this endpoint. Incremented on construction and decremented in
+# ``release`` (called from ``CosmosClient.__aexit__`` / ``close`` / ``__del__``).
+# When the count hits zero we drop the entry from all four dicts so an idle
+# endpoint does not pin memory forever. ``clear_cache`` does NOT touch this
+# count — it only wipes routing-map contents.
 _shared_cache_refcounts: Dict[str, int] = {}
 
-# Process-wide lock guarding all four dicts above. Intentionally a
-# ``threading.Lock`` (not an ``asyncio.Lock``) so the same module-level state
-# can be shared by both the async ``PartitionKeyRangeCache`` here and its sync
-# counterpart in ``routing_map_provider.py``, AND so it works correctly when
-# clients are created across multiple event loops in the same process (an
-# ``asyncio.Lock`` is bound to the loop that created it). The critical
-# sections it protects are dict-level reads/writes only — never await, never
+# Process-wide lock guarding the four dicts above for *this* (async) module.
+# Note: the sync module ``_routing/routing_map_provider.py`` defines its own
+# independent set of module-level dicts and its own ``_shared_cache_lock`` —
+# state is NOT shared between the sync and async modules. A sync and an async
+# ``CosmosClient`` targeting the same endpoint maintain separate routing-map
+# caches. Using a ``threading.Lock`` (not an ``asyncio.Lock``) is also
+# essential for correctness across multiple event loops in the same process:
+# an ``asyncio.Lock`` binds to the loop that first acquires it. The critical
+# sections this lock guards are pure dict reads/writes — never await, never
 # network I/O — so a brief threading-lock acquisition from a coroutine is
 # safe and does not block the event loop in any meaningful way.
 _shared_cache_lock = threading.Lock()
@@ -174,14 +178,20 @@ class PartitionKeyRangeCache(object):
     def release(self) -> None:
         """Decrement the per-endpoint refcount and evict shared state at zero.
 
-        Safe to call multiple times. Best-effort: never raises.
+        Safe to call multiple times concurrently. Best-effort: never raises.
+
+        The ``_released`` check-and-set is performed *inside* the shared
+        cache lock to close the TOCTOU window between two concurrent callers
+        (e.g. ``CosmosClient.__aexit__`` racing the GC's ``__del__``).
+        Without the lock, both callers could pass the early-return guard
+        before either set the flag, then both would decrement the refcount.
         """
-        if self._released:
-            return
-        self._released = True
         endpoint = self._endpoint
         try:
             with _shared_cache_lock:
+                if self._released:
+                    return
+                self._released = True
                 count = _shared_cache_refcounts.get(endpoint, 0) - 1
                 if count <= 0:
                     _shared_cache_refcounts.pop(endpoint, None)
