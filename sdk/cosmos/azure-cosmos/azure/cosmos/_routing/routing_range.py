@@ -29,7 +29,16 @@ import json
 
 from collections import namedtuple
 
-_PKRangeBase = namedtuple('_PKRangeBase', ['id', 'minInclusive', 'maxExclusive', 'parents'])
+# ``status`` is included so callers can detect non-online ranges (e.g.
+# splitting / offline) without re-fetching the raw service payload. It is
+# the only PKR field beyond id/min/max/parents kept in the cache today;
+# default ``None`` keeps construction sites that don't pass it backward
+# compatible.
+_PKRangeBase = namedtuple(
+    '_PKRangeBase',
+    ['id', 'minInclusive', 'maxExclusive', 'parents', 'status', 'throughputFraction'],
+    defaults=(None, None),
+)
 
 
 class PKRange(_PKRangeBase):
@@ -89,6 +98,8 @@ class PartitionKeyRange(object):
     MaxExclusive = "maxExclusive"
     Id = "id"
     Parents = "parents"
+    Status = "status"
+    ThroughputFraction = "throughputFraction"
 
 
 class Range(object):

@@ -156,7 +156,7 @@ class PartitionKeyRangeCache(object):
             self._collection_locks: Dict[tuple, asyncio.Lock] = _shared_collection_locks[self._endpoint]
             self._locks_lock: threading.Lock = _shared_locks_locks[self._endpoint]
 
-    async def clear_cache(self):
+    def clear_cache(self):
         """Clear the shared routing map cache for this endpoint.
 
         Uses in-place ``.clear()`` on the routing-map dict to preserve all

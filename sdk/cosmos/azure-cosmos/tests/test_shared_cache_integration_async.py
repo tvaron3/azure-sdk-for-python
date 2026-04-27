@@ -114,7 +114,7 @@ class TestSharedCacheIntegrationAsync(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(len(cache) > 0)
 
         provider = self._get_routing_provider(self.client1)
-        await provider.clear_cache()
+        provider.clear_cache()
         self.assertEqual(len(cache), 0)
 
         await self._populate_cache(self.client1, self.container)
@@ -129,7 +129,7 @@ class TestSharedCacheIntegrationAsync(unittest.IsolatedAsyncioTestCase):
 
             await self.container.read_item("async-cache-item-0", partition_key="pk-0")
 
-            await self._get_routing_provider(self.client1).clear_cache()
+            self._get_routing_provider(self.client1).clear_cache()
 
             cache1 = self._get_cache_dict(self.client1)
             cache2 = self._get_cache_dict(client2)

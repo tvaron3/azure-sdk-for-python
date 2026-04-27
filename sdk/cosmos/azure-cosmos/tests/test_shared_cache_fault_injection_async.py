@@ -47,7 +47,7 @@ class TestSharedCacheFaultInjectionAsync(unittest.IsolatedAsyncioTestCase):
                     container = client.get_database_client(self.TEST_DATABASE_ID).get_container_client(
                         self.TEST_CONTAINER_ID)
                     for _ in range(5):
-                        await client.client_connection._routing_map_provider.clear_cache()
+                        client.client_connection._routing_map_provider.clear_cache()
                         result = await container.read_item(
                             f"afi-{worker_id % 3}", partition_key=f"pk-{worker_id % 3}")
                         assert result["id"] == f"afi-{worker_id % 3}"
@@ -77,7 +77,7 @@ class TestSharedCacheFaultInjectionAsync(unittest.IsolatedAsyncioTestCase):
 
         # Rapidly clear cache
         for _ in range(10):
-            await self.client.client_connection._routing_map_provider.clear_cache()
+            self.client.client_connection._routing_map_provider.clear_cache()
             await asyncio.sleep(0.01)
 
         stop_event.set()

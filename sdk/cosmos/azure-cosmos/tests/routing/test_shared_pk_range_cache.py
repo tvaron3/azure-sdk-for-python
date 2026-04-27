@@ -103,6 +103,45 @@ class TestSharedPartitionKeyRangeCache(unittest.TestCase):
         self.assertIn("id", pkr)
         self.assertNotIn("_rid", pkr)
 
+    def test_pkrange_contains_truthy_presence_for_parents(self):
+        """``"parents" in pkr`` follows truthy-presence semantics.
+
+        The most common production case is a PKR that has never split
+        (``parents=()``), where ``"parents" in pkr`` must report False so
+        callers that previously consumed raw service dicts (where the field
+        was simply absent when empty) keep working unchanged.
+        """
+        pkr_no_parents = PKRange(id="0", minInclusive="", maxExclusive="FF", parents=())
+        self.assertNotIn("parents", pkr_no_parents)
+
+        pkr_with_parents = PKRange(id="2", minInclusive="40", maxExclusive="80", parents=("0", "1"))
+        self.assertIn("parents", pkr_with_parents)
+
+    def test_pkrange_status_and_throughput_fraction_fields_roundtrip(self):
+        """``status`` and ``throughputFraction`` are the non-routing PKR fields
+        retained in the cache for forward-compat (e.g. filtering non-online
+        ranges or future RU-share-aware logic).
+
+        Confirms back-compat (default ``None`` => not present) and that
+        explicit values flow through dict-style access and ``__contains__``.
+        """
+        pkr_default = PKRange(id="0", minInclusive="", maxExclusive="FF", parents=())
+        self.assertIsNone(pkr_default.status)
+        self.assertIsNone(pkr_default.throughputFraction)
+        self.assertNotIn("status", pkr_default)
+        self.assertNotIn("throughputFraction", pkr_default)
+
+        pkr_online = PKRange(
+            id="1", minInclusive="00", maxExclusive="80", parents=(),
+            status="online", throughputFraction=0.5,
+        )
+        self.assertEqual(pkr_online.status, "online")
+        self.assertEqual(pkr_online["status"], "online")
+        self.assertIn("status", pkr_online)
+        self.assertEqual(pkr_online.throughputFraction, 0.5)
+        self.assertEqual(pkr_online["throughputFraction"], 0.5)
+        self.assertIn("throughputFraction", pkr_online)
+
     def test_pkrange_in_collection_routing_map(self):
         """CollectionRoutingMap works with PKRange namedtuples."""
         pk_ranges = [
