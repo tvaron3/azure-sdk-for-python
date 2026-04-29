@@ -124,7 +124,7 @@ def prepare_fetch_options_and_headers(
 
 
 
-def _resolve_endpoint(client):
+def _resolve_endpoint(client: Any) -> str:
     """Return a cache key for ``client``'s endpoint.
 
     Falls back to ``__unknown_<id>__`` when ``client`` has no ``url_connection``
@@ -137,6 +137,7 @@ def _resolve_endpoint(client):
 
     :param client: The CosmosClient (or compatible) instance whose endpoint
         will be used as the shared-cache key.
+    :type client: Any
     :returns: The endpoint URL string, or a per-instance fallback key when the
         client does not expose ``url_connection``.
     :rtype: str
