@@ -123,6 +123,30 @@ def prepare_fetch_options_and_headers(
 
 
 
+
+def _resolve_endpoint(client):
+    """Return a cache key for ``client``'s endpoint.
+
+    Falls back to ``__unknown_<id>__`` when ``client`` has no ``url_connection``
+    so unknown/mocked clients are isolated rather than collapsed into a single
+    shared cache entry.
+
+    Centralized here so the sync (``routing_map_provider``) and async
+    (``aio.routing_map_provider``) modules use exactly the same fallback shape
+    — a divergence here would silently fragment the per-endpoint shared cache.
+
+    :param client: The CosmosClient (or compatible) instance whose endpoint
+        will be used as the shared-cache key.
+    :returns: The endpoint URL string, or a per-instance fallback key when the
+        client does not expose ``url_connection``.
+    :rtype: str
+    """
+    try:
+        return client.url_connection
+    except AttributeError:
+        return f"__unknown_{id(client)}__"
+
+
 class _NeedFullRefresh(Exception):
     """Sentinel raised by :func:`process_fetched_ranges` when the
     incremental update cannot be completed and a full refresh is needed."""
@@ -210,13 +234,7 @@ def process_fetched_ranges(
                 next_unresolved.append(r)
                 continue
 
-            range_tuples.append((PKRange(
-                id=r[PartitionKeyRange.Id],
-                minInclusive=r[PartitionKeyRange.MinInclusive],
-                maxExclusive=r[PartitionKeyRange.MaxExclusive],
-                parents=tuple(r.get(PartitionKeyRange.Parents) or ()),
-                status=r.get(PartitionKeyRange.Status),
-                throughputFraction=r.get(PartitionKeyRange.ThroughputFraction)), range_info))
+            range_tuples.append((PKRange.from_dict(r), range_info))
             known_range_info_by_id[r[PartitionKeyRange.Id]] = range_info
             progress_made = True
 

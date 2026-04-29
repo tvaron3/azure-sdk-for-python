@@ -30,6 +30,7 @@ from .. import _base, http_constants
 from .collection_routing_map import CollectionRoutingMap
 from ..exceptions import CosmosHttpResponseError
 from ._routing_map_provider_common import (
+    _resolve_endpoint,
     prepare_fetch_options_and_headers,
     process_fetched_ranges,
     is_cache_unchanged_since_previous,
@@ -84,25 +85,6 @@ _shared_cache_refcounts: Dict[str, int] = {}
 # from a coroutine context (used by the async module's analogous lock).
 _shared_cache_lock = threading.Lock()
 
-
-def _resolve_endpoint(client: Any) -> str:
-    """Return a cache key for ``client``'s endpoint.
-
-    Falls back to ``__unknown_<id>__`` when ``client`` has no ``url_connection``
-    so unknown/mocked clients are isolated rather than collapsed into a single
-    shared cache entry.
-
-    :param client: The CosmosClient (or compatible) instance whose endpoint
-        will be used as the shared-cache key.
-    :type client: Any
-    :returns: The endpoint URL string, or a per-instance fallback key when the
-        client does not expose ``url_connection``.
-    :rtype: str
-    """
-    try:
-        return client.url_connection
-    except AttributeError:
-        return f"__unknown_{id(client)}__"
 
 # pylint: disable=protected-access, line-too-long
 

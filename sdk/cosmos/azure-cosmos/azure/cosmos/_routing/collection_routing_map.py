@@ -289,12 +289,7 @@ def _build_routing_map_from_ranges(
             gone_range_ids.update(r[PartitionKeyRange.Parents])
 
     filtered_ranges = [
-        PKRange(id=r[PartitionKeyRange.Id],
-                minInclusive=r[PartitionKeyRange.MinInclusive],
-                maxExclusive=r[PartitionKeyRange.MaxExclusive],
-                parents=tuple(r.get(PartitionKeyRange.Parents) or ()),
-                status=r.get(PartitionKeyRange.Status),
-                throughputFraction=r.get(PartitionKeyRange.ThroughputFraction))
+        PKRange.from_dict(r)
         for r in ranges if r[PartitionKeyRange.Id] not in gone_range_ids
     ]
     range_tuples = [(r, True) for r in filtered_ranges]

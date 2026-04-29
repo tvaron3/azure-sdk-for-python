@@ -90,6 +90,28 @@ class PKRange(_PKRangeBase):
     def __hash__(self):
         return super().__hash__()
 
+    @classmethod
+    def from_dict(cls, raw):
+        """Build a compact ``PKRange`` from a raw service-response dict.
+
+        Centralized factory used by both the full-build path
+        (``collection_routing_map._build_routing_map_from_ranges``) and the
+        incremental-merge path (``_routing_map_provider_common.process_fetched_ranges``)
+        so the field-mapping policy lives in exactly one place.
+
+        :param dict raw: A raw partition-key-range dict from the service response.
+        :returns: A compact ``PKRange`` namedtuple.
+        :rtype: PKRange
+        """
+        return cls(
+            id=raw[PartitionKeyRange.Id],
+            minInclusive=raw[PartitionKeyRange.MinInclusive],
+            maxExclusive=raw[PartitionKeyRange.MaxExclusive],
+            parents=tuple(raw.get(PartitionKeyRange.Parents) or ()),
+            status=raw.get(PartitionKeyRange.Status),
+            throughputFraction=raw.get(PartitionKeyRange.ThroughputFraction),
+        )
+
 
 class PartitionKeyRange(object):
     """Partition Key Range Constants"""
