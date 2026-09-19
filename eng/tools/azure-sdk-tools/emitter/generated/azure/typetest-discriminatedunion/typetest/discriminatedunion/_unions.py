@@ -6,11 +6,11 @@
 # Changes may cause incorrect behavior and will be lost if the code is regenerated.
 # --------------------------------------------------------------------------
 
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, TypeAlias, Union
 
 if TYPE_CHECKING:
     from . import models as _models
-PetWithEnvelope = Union["_models.Cat", "_models.Dog"]
-PetWithCustomNames = Union["_models.Cat", "_models.Dog"]
-PetInline = Union["_models.Cat", "_models.Dog"]
-PetInlineWithCustomDiscriminator = Union["_models.Cat", "_models.Dog"]
+PetWithEnvelope: TypeAlias = Union["_models.Cat", "_models.Dog"]
+PetWithCustomNames: TypeAlias = Union["_models.Cat", "_models.Dog"]
+PetInline: TypeAlias = Union["_models.Cat", "_models.Dog"]
+PetInlineWithCustomDiscriminator: TypeAlias = Union["_models.Cat", "_models.Dog"]
